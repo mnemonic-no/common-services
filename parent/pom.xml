@@ -33,6 +33,7 @@
   </properties>
 
   <modules>
+    <module>../auth</module>
   </modules>
 
   <scm>
