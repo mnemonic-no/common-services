@@ -2,7 +2,9 @@
   <modelVersion>4.0.0</modelVersion>
   <artifactId>auth</artifactId>
   <packaging>jar</packaging>
-  <name>common-auth</name>
+
+  <name>mnemonic common services - auth</name>
+  <description>Interfaces defining an access controller</description>
 
   <parent>
     <groupId>no.mnemonic.services.common</groupId>
@@ -10,23 +12,6 @@
     <version>0.0.4-SNAPSHOT</version>
     <relativePath>../parent</relativePath>
   </parent>
-
-  <build>
-
-    <sourceDirectory>src/main/java</sourceDirectory>
-    <testSourceDirectory>src/test/java</testSourceDirectory>
-    <resources>
-      <resource>
-        <directory>src/main/resources</directory>
-      </resource>
-    </resources>
-    <testResources>
-      <testResource>
-        <directory>src/test/resources</directory>
-      </testResource>
-    </testResources>
-
-  </build>
 
   <dependencies>
     <dependency>
@@ -36,6 +21,5 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
-
 
 </project>
