@@ -61,7 +61,7 @@
   </properties>
 
   <modules>
-    <module>../auth</module>
+    <module>auth</module>
   </modules>
 
   <scm>
