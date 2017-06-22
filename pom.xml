@@ -43,6 +43,11 @@
 
     <!-- external dependencies -->
     <junit.version>4.12</junit.version>
+    <mockito.version>2.7.4</mockito.version>
+    <mnemonic.commons.version>0.1.0</mnemonic.commons.version>
+    <mnemonic.messaging.version>1.0.1</mnemonic.messaging.version>
+    <cglib.version>3.2.4</cglib.version>
+    <activemq.version>5.14.1</activemq.version>
 
     <!-- build dependencies -->
     <maven.clean.version>3.0.0</maven.clean.version>
@@ -62,6 +67,8 @@
 
   <modules>
     <module>auth</module>
+    <module>service-api</module>
+    <module>messagebus</module>
   </modules>
 
   <scm>
@@ -199,7 +206,7 @@
           <includedLicenses>Apache 2|CDDL|Eclipse|ISC|MIT</includedLicenses>
           <!-- Consolidate license names. -->
           <licenseMerges>
-            <licenseMerge>Apache 2|Apache License 2.0|Apache Software License - Version 2.0|Apache License, Version 2.0|The Apache Software License, Version 2.0</licenseMerge>
+            <licenseMerge>Apache 2|ASF 2.0|Apache License 2.0|Apache Software License - Version 2.0|Apache License, Version 2.0|The Apache Software License, Version 2.0</licenseMerge>
             <licenseMerge>CDDL|CDDL 1.1|CDDL + GPLv2 with classpath exception</licenseMerge>
             <licenseMerge>Eclipse|Eclipse Public License 1.0|Eclipse Public License - Version 1.0</licenseMerge>
             <licenseMerge>MIT|The MIT License</licenseMerge>
