@@ -184,7 +184,8 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
     signalContext.addResponse(builder.build(batchIndex++, batch, true));
   }
 
-  static Builder builder() {
+  @SuppressWarnings("WeakerAccess")
+  public static Builder builder() {
     return new Builder();
   }
 
