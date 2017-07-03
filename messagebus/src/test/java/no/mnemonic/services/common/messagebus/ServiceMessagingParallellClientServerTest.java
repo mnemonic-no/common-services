@@ -5,6 +5,8 @@ import no.mnemonic.commons.container.ComponentContainer;
 import no.mnemonic.commons.metrics.TimerContext;
 import no.mnemonic.messaging.requestsink.jms.JMSConnection;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestProxy;
+import no.mnemonic.services.common.api.ServiceSession;
+import no.mnemonic.services.common.api.ServiceSessionFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,10 +28,13 @@ public class ServiceMessagingParallellClientServerTest extends AbstractServiceMe
   private Collection<ServiceMessageHandler> handlers = new ArrayList<>();
   @Mock
   private TestService testService;
+  @Mock
+  private ServiceSessionFactory sessionFactory;
 
   @Before
   public void setup() throws InterruptedException, ExecutionException, TimeoutException {
     MockitoAnnotations.initMocks(this);
+    when(sessionFactory.openSession()).thenReturn(() -> {});
   }
 
   @After
@@ -90,6 +95,7 @@ public class ServiceMessagingParallellClientServerTest extends AbstractServiceMe
   private void setupServer(int serverThreads) {
     ServiceMessageHandler handler = ServiceMessageHandler.builder()
             .setService(testService)
+            .setSessionFactory(sessionFactory)
             .setMaxConcurrentRequests(serverThreads)
             .build();
 

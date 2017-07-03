@@ -3,6 +3,7 @@ package no.mnemonic.services.common.messagebus;
 import no.mnemonic.messaging.requestsink.RequestContext;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.ServiceSession;
+import no.mnemonic.services.common.api.ServiceSessionFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -32,6 +33,8 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
   @Mock
   private TestService testService;
   @Mock
+  private ServiceSessionFactory sessionFactory;
+  @Mock
   private ServiceSession session;
   @Mock
   private RequestContext signalContext;
@@ -47,7 +50,7 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
     MockitoAnnotations.initMocks(this);
     when(testService.getString(any())).thenReturn("result");
     when(testService.getResultSet(any())).thenReturn(createResultSet(createResults(3)));
-    when(testService.openSession()).thenReturn(session);
+    when(sessionFactory.openSession()).thenReturn(session);
 
     when(signalContext.addResponse(any())).thenAnswer(i -> responses.add(i.getArgument(0)));
     when(signalContext.keepAlive(anyLong())).thenAnswer(i -> {
@@ -74,7 +77,7 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
   public void testRequestOpensSession() throws Exception {
     sendSignal(METHOD_GET_STRING);
     endOfStream.get(100, TimeUnit.MILLISECONDS);
-    verify(testService).openSession();
+    verify(sessionFactory).openSession();
     verify(session).close();
   }
 
@@ -189,6 +192,7 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
   private ServiceMessageHandler createHandler() {
     ServiceMessageHandler handler = ServiceMessageHandler.builder()
             .setService(testService)
+            .setSessionFactory(sessionFactory)
             .setBatchSize(5)
             .setKeepAliveInterval(100)
             .build();

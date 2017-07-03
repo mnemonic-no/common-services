@@ -7,6 +7,7 @@ import no.mnemonic.messaging.requestsink.jms.JMSConnection;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestProxy;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestSink;
 import no.mnemonic.services.common.api.ResultSet;
+import no.mnemonic.services.common.api.ServiceSessionFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -34,15 +35,19 @@ public class ServiceMessagingTest  extends AbstractServiceMessagePerformanceTest
 
   @Mock
   private TestService testService;
+  @Mock
+  private ServiceSessionFactory sessionFactory;
 
   @Before
   public void setup() throws InterruptedException, ExecutionException, TimeoutException {
     MockitoAnnotations.initMocks(this);
+    when(sessionFactory.openSession()).thenReturn(() -> {});
     when(testService.getString(any())).thenAnswer(i -> i.getArgument(0));
     when(testService.getResultSet(any())).thenAnswer(i -> createResultSet(createResults(1000)));
 
     ServiceMessageHandler listener = ServiceMessageHandler.builder()
             .setService(testService)
+            .setSessionFactory(sessionFactory)
             .setMaxConcurrentRequests(SERVER_THREADS)
             .setBatchSize(100)
             .build();

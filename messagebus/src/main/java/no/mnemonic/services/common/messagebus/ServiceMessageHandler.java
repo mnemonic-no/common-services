@@ -15,6 +15,7 @@ import no.mnemonic.messaging.requestsink.RequestSink;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.ServiceSession;
+import no.mnemonic.services.common.api.ServiceSessionFactory;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -38,6 +39,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   //variables
   @Dependency
   private final Service service;
+  private final ServiceSessionFactory sessionFactory;
   private final int maxConcurrentRequests;
   private final int batchSize;
   private final long keepAliveInterval;
@@ -54,11 +56,13 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   private final LongAdder exceptions = new LongAdder();
   private final LongAdder undeclaredExceptions = new LongAdder();
 
-  private ServiceMessageHandler(Service service, int maxConcurrentRequests, int batchSize, long keepAliveInterval) {
+  private ServiceMessageHandler(Service service, ServiceSessionFactory sessionFactory, int maxConcurrentRequests, int batchSize, long keepAliveInterval) {
     if (service == null) throw new IllegalArgumentException("service not set");
+    if (sessionFactory == null) throw new IllegalArgumentException("sessionFactory not set");
     if (maxConcurrentRequests < 1) throw new IllegalArgumentException("maxConcurrentRequests must be a positive integer");
     if (batchSize < 1) throw new IllegalArgumentException("batchSize must be a positive integer");
     if (keepAliveInterval < 1) throw new IllegalArgumentException("keepAliveInterval must be a positive integer");
+    this.sessionFactory = sessionFactory;
     this.service = service;
     this.maxConcurrentRequests = maxConcurrentRequests;
     this.batchSize = batchSize;
@@ -127,7 +131,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   //private methods
 
   private void handleRequest(ServiceRequestMessage request, RequestContext signalContext) {
-    try (ServiceSession ignored = service.openSession()) {
+    try (ServiceSession ignored = sessionFactory.openSession()) {
 
       Method method = service.getClass().getMethod(request.getMethodName(), request.getArgumentTypes());
       Object returnValue;
@@ -192,13 +196,19 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   @SuppressWarnings("WeakerAccess")
   public static class Builder {
     private Service service;
+    private ServiceSessionFactory sessionFactory;
     private int batchSize = DEFAULT_BATCH_SIZE;
     private int maxConcurrentRequests = DEFAULT_MAX_CONCURRENT_REQUESTS;
     private long keepAliveInterval = DEFAULT_KEEPALIVE_INTERVAL;
 
     public ServiceMessageHandler build() {
       if (service == null) throw new IllegalArgumentException("service not set");
-      return new ServiceMessageHandler(service, maxConcurrentRequests, batchSize, keepAliveInterval);
+      return new ServiceMessageHandler(service, sessionFactory, maxConcurrentRequests, batchSize, keepAliveInterval);
+    }
+
+    public Builder setSessionFactory(ServiceSessionFactory sessionFactory) {
+      this.sessionFactory = sessionFactory;
+      return this;
     }
 
     public Builder setService(Service service) {
