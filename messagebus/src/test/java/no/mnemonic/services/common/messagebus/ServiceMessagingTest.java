@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 
 public class ServiceMessagingTest  extends AbstractServiceMessagePerformanceTest {
@@ -43,6 +43,15 @@ public class ServiceMessagingTest  extends AbstractServiceMessagePerformanceTest
     MockitoAnnotations.initMocks(this);
     when(sessionFactory.openSession()).thenReturn(() -> {});
     when(testService.getString(any())).thenAnswer(i -> i.getArgument(0));
+    when(testService.primitiveLongArgument(anyLong())).thenReturn("resultstring");
+    when(testService.primitiveBooleanArgument(anyBoolean())).thenReturn("resultstring");
+    when(testService.primitiveIntArgument(anyInt())).thenReturn("resultstring");
+    when(testService.primitiveCharArgument(anyChar())).thenReturn("resultstring");
+    when(testService.primitiveByteArgument(anyByte())).thenReturn("resultstring");
+    when(testService.primitiveFloatArgument(anyFloat())).thenReturn("resultstring");
+    when(testService.primitiveDoubleArgument(anyDouble())).thenReturn("resultstring");
+    when(testService.primitiveArrayArgument(any())).thenReturn("resultstring");
+    when(testService.objectArrayArgument(any())).thenReturn("resultstring");
     when(testService.getResultSet(any())).thenAnswer(i -> createResultSet(createResults(1000)));
 
     ServiceMessageHandler listener = ServiceMessageHandler.builder()
@@ -79,6 +88,61 @@ public class ServiceMessagingTest  extends AbstractServiceMessagePerformanceTest
     TestService srv = client.getInstance();
     assertEquals("resultstring", srv.getString("resultstring"));
   }
+
+  @Test
+  public void testPrimitiveLongArgumentTest() throws NotBoundException, RemoteException {
+    TestService srv = client.getInstance();
+    assertEquals("resultstring", srv.primitiveLongArgument(1L));
+  }
+
+  @Test
+  public void testPrimitiveIntArgumentTest() throws NotBoundException, RemoteException {
+    TestService srv = client.getInstance();
+    assertEquals("resultstring", srv.primitiveIntArgument(1));
+  }
+
+  @Test
+  public void testPrimitiveBooleanArgumentTest() throws NotBoundException, RemoteException {
+    TestService srv = client.getInstance();
+    assertEquals("resultstring", srv.primitiveBooleanArgument(false));
+  }
+
+  @Test
+  public void testPrimitiveCharArgumentTest() throws NotBoundException, RemoteException {
+    TestService srv = client.getInstance();
+    assertEquals("resultstring", srv.primitiveCharArgument('a'));
+  }
+
+  @Test
+  public void testPrimitiveFloatArgumentTest() throws NotBoundException, RemoteException {
+    TestService srv = client.getInstance();
+    assertEquals("resultstring", srv.primitiveFloatArgument((float) 1.0));
+  }
+
+  @Test
+  public void testPrimitiveByteArgumentTest() throws NotBoundException, RemoteException {
+    TestService srv = client.getInstance();
+    assertEquals("resultstring", srv.primitiveByteArgument((byte)1));
+  }
+
+  @Test
+  public void testPrimitiveDoubleArgumentTest() throws NotBoundException, RemoteException {
+    TestService srv = client.getInstance();
+    assertEquals("resultstring", srv.primitiveDoubleArgument(1.0));
+  }
+
+  @Test
+  public void testPrimitiveArrayArgument() throws NotBoundException, RemoteException {
+    TestService srv = client.getInstance();
+    assertEquals("resultstring", srv.primitiveArrayArgument(new long[]{1L,2L,3L}));
+  }
+
+  @Test
+  public void testObjectArrayArgument() throws NotBoundException, RemoteException {
+    TestService srv = client.getInstance();
+    assertEquals("resultstring", srv.objectArrayArgument(new String[]{"a","b","c"}));
+  }
+
 
   @Test
   public void testRemoteResultSetRequest() throws NotBoundException, RemoteException {

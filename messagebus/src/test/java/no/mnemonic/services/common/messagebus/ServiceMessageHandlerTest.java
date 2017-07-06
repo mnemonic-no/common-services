@@ -28,6 +28,7 @@ import static org.mockito.Mockito.*;
 public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
 
   private static final String METHOD_GET_STRING = "getString";
+  private static final String METHOD_PRIMITIVE_LONG_ARGUMENT = "primitiveLongArgument";
   private static final String METHOD_GET_RESULTSET = "getResultSet";
 
   @Mock
@@ -49,6 +50,15 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
   public void setup() {
     MockitoAnnotations.initMocks(this);
     when(testService.getString(any())).thenReturn("result");
+    when(testService.primitiveLongArgument(anyLong())).thenReturn("result");
+    when(testService.primitiveIntArgument(anyInt())).thenReturn("result");
+    when(testService.primitiveCharArgument(anyChar())).thenReturn("result");
+    when(testService.primitiveByteArgument(anyByte())).thenReturn("result");
+    when(testService.primitiveBooleanArgument(anyBoolean())).thenReturn("result");
+    when(testService.primitiveFloatArgument(anyFloat())).thenReturn("result");
+    when(testService.primitiveDoubleArgument(anyDouble())).thenReturn("result");
+    when(testService.objectArrayArgument(any())).thenReturn("result");
+    when(testService.primitiveArrayArgument(any())).thenReturn("result");
     when(testService.getResultSet(any())).thenReturn(createResultSet(createResults(3)));
     when(sessionFactory.openSession()).thenReturn(session);
 
@@ -64,6 +74,20 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
   @After
   public void cleanup() {
     executor = Executors.newCachedThreadPool();
+  }
+
+  @Test
+  public void testRequestInvokesPrimitiveArgumentMethod() throws InterruptedException, ExecutionException, TimeoutException {
+    ServiceMessageHandler handler = createHandler();
+    ServiceRequestMessage req = createRequest(METHOD_PRIMITIVE_LONG_ARGUMENT)
+            .setArgumentTypes(new String[]{Long.TYPE.getName()})
+            .setArguments(new Object[]{1L})
+            .build();
+    executor.submit(() ->
+            handler.signal(req, signalContext, 1000)
+    );
+    endOfStream.get(100, TimeUnit.MILLISECONDS);
+    verify(testService).primitiveLongArgument(1L);
   }
 
   @Test
@@ -185,7 +209,7 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
             .setRequestID("callid")
             .setServiceName("servicename")
             .setMethodName(method)
-            .setArgumentTypes(new Class[]{String.class})
+            .setArgumentTypes(new String[]{String.class.getName()})
             .setArguments(new Object[]{"arg"});
   }
 

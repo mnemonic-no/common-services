@@ -16,10 +16,10 @@ public class ServiceRequestMessage implements Message, AppendMembers {
   private final String requestID;
   private final String serviceName;
   private final String methodName;
-  private final Class[] argumentTypes;
+  private final String[] argumentTypes;
   private final Object[] arguments;
 
-  private ServiceRequestMessage(String requestID, String serviceName, String methodName, Class[] argumentTypes, Object[] arguments) {
+  private ServiceRequestMessage(String requestID, String serviceName, String methodName, String[] argumentTypes, Object[] arguments) {
     this.requestID = requestID;
     this.serviceName = serviceName;
     this.methodName = methodName;
@@ -71,7 +71,7 @@ public class ServiceRequestMessage implements Message, AppendMembers {
     return methodName;
   }
 
-  Class[] getArgumentTypes() {
+  String[] getArgumentTypes() {
     return argumentTypes;
   }
 
@@ -88,7 +88,7 @@ public class ServiceRequestMessage implements Message, AppendMembers {
     private String requestID;
     private String serviceName;
     private String methodName;
-    private Class[] argumentTypes;
+    private String[] argumentTypes;
     private Object[] arguments;
 
     private Builder() {
@@ -113,7 +113,7 @@ public class ServiceRequestMessage implements Message, AppendMembers {
       return this;
     }
 
-    Builder setArgumentTypes(Class[] argumentTypes) {
+    Builder setArgumentTypes(String[] argumentTypes) {
       this.argumentTypes = argumentTypes;
       return this;
     }

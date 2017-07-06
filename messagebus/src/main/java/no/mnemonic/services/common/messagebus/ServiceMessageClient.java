@@ -84,6 +84,49 @@ public class ServiceMessageClient<T extends Service> {
     return (T) enhancer.create();
   }
 
+  private String[] fromTypes(Type[] types) throws ClassNotFoundException {
+    if (types == null) throw new IllegalArgumentException("Types was null!");
+    String[] clz = new String[types.length];
+    for (int i = 0; i < clz.length; i++) {
+      Type t = types[i];
+      switch (t.getSort()) {
+        case Type.OBJECT:
+          clz[i] = t.getClassName();
+          break;
+        case Type.LONG:
+          clz[i] = Long.TYPE.getName();
+          break;
+        case Type.FLOAT:
+          clz[i] = Float.TYPE.getName();
+          break;
+        case Type.DOUBLE:
+          clz[i] = Double.TYPE.getName();
+          break;
+        case Type.BYTE:
+          clz[i] = Byte.TYPE.getName();
+          break;
+        case Type.INT:
+          clz[i] = Integer.TYPE.getName();
+          break;
+        case Type.BOOLEAN:
+          clz[i] = Boolean.TYPE.getName();
+          break;
+        case Type.SHORT:
+          clz[i] = Short.TYPE.getName();
+          break;
+        case Type.CHAR:
+          clz[i] = Character.TYPE.getName();
+          break;
+        case Type.ARRAY:
+          clz[i] = t.getDescriptor().replace("/", ".");
+          break;
+        default:
+          throw new IllegalArgumentException("Invalid argument type: " + t.getSort());
+      }
+    }
+    return clz;
+  }
+
   private class MessageMethodInterceptor implements MethodInterceptor {
 
     public Object intercept(Object object, Method method, Object[] arguments, MethodProxy proxy)
@@ -99,15 +142,6 @@ public class ServiceMessageClient<T extends Service> {
       return invoke(proxy, arguments, method.getReturnType());
     }
 
-    private Class[] fromType(Type[] types) throws ClassNotFoundException {
-      if (types == null) throw new IllegalArgumentException("Types was null!");
-      Class[] clz = new Class[types.length];
-      for (int i = 0; i < clz.length; i++) {
-        clz[i] = Class.forName(types[i].getClassName());
-      }
-      return clz;
-    }
-
     private Object invoke(MethodProxy proxy, Object[] arguments, Class<?> returnType) throws Throwable {
       requests.increment();
       //noinspection unused
@@ -117,7 +151,7 @@ public class ServiceMessageClient<T extends Service> {
                 .setRequestID(requestID.toString())
                 .setServiceName(proxyInterface.getName())
                 .setMethodName(proxy.getSignature().getName())
-                .setArgumentTypes(fromType(proxy.getSignature().getArgumentTypes()))
+                .setArgumentTypes(fromTypes(proxy.getSignature().getArgumentTypes()))
                 .setArguments(arguments)
                 .build();
 

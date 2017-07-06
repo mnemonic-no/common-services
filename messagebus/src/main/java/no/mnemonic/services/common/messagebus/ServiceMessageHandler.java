@@ -17,11 +17,13 @@ import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.ServiceSession;
 import no.mnemonic.services.common.api.ServiceSessionFactory;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -60,7 +62,8 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   private ServiceMessageHandler(Service service, ServiceSessionFactory sessionFactory, int maxConcurrentRequests, int batchSize, long keepAliveInterval, long shutdownWait) {
     if (service == null) throw new IllegalArgumentException("service not set");
     if (sessionFactory == null) throw new IllegalArgumentException("sessionFactory not set");
-    if (maxConcurrentRequests < 1) throw new IllegalArgumentException("maxConcurrentRequests must be a positive integer");
+    if (maxConcurrentRequests < 1)
+      throw new IllegalArgumentException("maxConcurrentRequests must be a positive integer");
     if (batchSize < 1) throw new IllegalArgumentException("batchSize must be a positive integer");
     if (keepAliveInterval < 1) throw new IllegalArgumentException("keepAliveInterval must be a positive integer");
     if (shutdownWait < 1) throw new IllegalArgumentException("shutdownWait must be a positive integer");
@@ -107,7 +110,8 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
 
   @Override
   public <T extends RequestContext> T signal(Message msg, T signalContext, long maxWait) {
-    if (executor == null) throw new IllegalStateException("Received signal before executor is set, is component started?");
+    if (executor == null)
+      throw new IllegalStateException("Received signal before executor is set, is component started?");
     if (msg == null) throw new IllegalStateException("Message not provided");
     if (signalContext == null) throw new IllegalStateException("Signal context not provided");
 
@@ -136,7 +140,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   private void handleRequest(ServiceRequestMessage request, RequestContext signalContext) {
     try (ServiceSession ignored = sessionFactory.openSession()) {
 
-      Method method = service.getClass().getMethod(request.getMethodName(), request.getArgumentTypes());
+      Method method = service.getClass().getMethod(request.getMethodName(), parseTypes(request.getArgumentTypes()));
       Object returnValue;
       //noinspection unused
       try (TimerContext timer = TimerContext.timerMillis(executionTime::add)) {
@@ -162,6 +166,36 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
     } finally {
       signalContext.endOfStream();
     }
+  }
+
+  private Class[] parseTypes(String[] types) throws ClassNotFoundException {
+    if (types == null) throw new IllegalArgumentException("Types was null!");
+    Class[] clz = new Class[types.length];
+    for (int i = 0; i < clz.length; i++) {
+      String typename = types[i];
+      if (Objects.equals(Long.TYPE.getName(), typename)) {
+        clz[i] = Long.TYPE;
+      } else if (Objects.equals(Integer.TYPE.getName(), typename)) {
+        clz[i] = Integer.TYPE;
+      } else if (Objects.equals(Float.TYPE.getName(), typename)) {
+        clz[i] = Float.TYPE;
+      } else if (Objects.equals(Double.TYPE.getName(), typename)) {
+        clz[i] = Double.TYPE;
+      } else if (Objects.equals(Byte.TYPE.getName(), typename)) {
+        clz[i] = Byte.TYPE;
+      } else if (Objects.equals(Boolean.TYPE.getName(), typename)) {
+        clz[i] = Boolean.TYPE;
+      } else if (Objects.equals(Short.TYPE.getName(), typename)) {
+        clz[i] = Short.TYPE;
+      } else if (Objects.equals(Character.TYPE.getName(), typename)) {
+        clz[i] = Character.TYPE;
+      } else if (Objects.equals("array", typename)) {
+        clz[i] = Object[].class;
+      } else {
+        clz[i] = Class.forName(typename);
+      }
+    }
+    return clz;
   }
 
   private boolean isUndeclaredException(Throwable e) {

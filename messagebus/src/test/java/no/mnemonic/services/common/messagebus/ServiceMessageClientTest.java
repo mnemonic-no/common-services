@@ -1,5 +1,6 @@
 package no.mnemonic.services.common.messagebus;
 
+import no.mnemonic.commons.testtools.MockitoTools;
 import no.mnemonic.messaging.requestsink.RequestContext;
 import no.mnemonic.messaging.requestsink.RequestSink;
 import no.mnemonic.services.common.api.ResultSet;
@@ -11,8 +12,11 @@ import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.concurrent.*;
+import java.util.function.Supplier;
 
 import static no.mnemonic.commons.testtools.MockitoTools.match;
 import static no.mnemonic.commons.utilities.collections.ListUtils.list;
@@ -20,6 +24,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,9 +52,42 @@ public class ServiceMessageClientTest {
     verify(requestSink).signal(match(r ->
                     r.getServiceName().equals(TestService.class.getName())
                             && r.getMethodName().equals("getString")
-                            && r.getArgumentTypes().length == 1 && r.getArgumentTypes()[0] == String.class
+                            && r.getArgumentTypes().length == 1 && Objects.equals(r.getArgumentTypes()[0], String.class.getName())
                             && r.getArguments().length == 1 && r.getArguments()[0].equals("arg"),
             ServiceRequestMessage.class), any(), eq(100L));
+  }
+
+  @Test
+  public void testPrimitiveTypes() {
+    doTestPrimitiveType(()-> proxy().primitiveBooleanArgument(true), Boolean.TYPE.getName(), true);
+    doTestPrimitiveType(()-> proxy().primitiveLongArgument(1), Long.TYPE.getName(), 1L);
+    doTestPrimitiveType(()-> proxy().primitiveIntArgument(1), Integer.TYPE.getName(), 1);
+    doTestPrimitiveType(()-> proxy().primitiveCharArgument('a'), Character.TYPE.getName(), 'a');
+    doTestPrimitiveType(()-> proxy().primitiveFloatArgument((float)1.0), Float.TYPE.getName(), (float)1.0);
+    doTestPrimitiveType(()-> proxy().primitiveDoubleArgument(1.0), Double.TYPE.getName(), 1.0);
+    doTestPrimitiveType(()-> proxy().primitiveByteArgument((byte)1), Byte.TYPE.getName(), (byte)1);
+  }
+
+  @Test
+  public void testPrimitiveArray() {
+    mockSingleResponse();
+    assertEquals("value", proxy().primitiveArrayArgument(new long[]{1L,2L,3L}));
+    verify(requestSink).signal(MockitoTools.match(
+            r->Objects.equals(r.getArgumentTypes()[0], "[J") && Arrays.equals((long[])r.getArguments()[0], new long[]{1L,2L,3L}),
+            ServiceRequestMessage.class),
+            any(), anyLong()
+    );
+  }
+
+  @Test
+  public void testObjectArray() {
+    mockSingleResponse();
+    assertEquals("value", proxy().objectArrayArgument(new String[]{"a","b","c"}));
+    verify(requestSink).signal(MockitoTools.match(
+            r->Objects.equals(r.getArgumentTypes()[0], String[].class.getName()) && Arrays.equals((String[])r.getArguments()[0], new String[]{"a","b","c"}),
+            ServiceRequestMessage.class),
+            any(), anyLong()
+    );
   }
 
   @Test
@@ -222,4 +260,15 @@ public class ServiceMessageClientTest {
     });
   }
 
+
+  private void doTestPrimitiveType(Supplier<String> testFunction, String expectedTypeName, Object expectedValue) {
+    reset(requestSink);
+    mockSingleResponse();
+    assertEquals("value", testFunction.get());
+    verify(requestSink).signal(MockitoTools.match(
+            r->Objects.equals(r.getArgumentTypes()[0], expectedTypeName) && r.getArguments()[0].equals(expectedValue),
+            ServiceRequestMessage.class),
+            any(), anyLong()
+    );
+  }
 }
