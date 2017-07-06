@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.LongAdder;
 
 public class ServiceMessageHandler implements RequestSink, LifecycleAspect, MetricAspect {
 
+  public static final int DEFAULT_SHUTDOWN_WAIT_MS = 10000;
   private static Clock clock = Clock.systemUTC();
   private static final Logger LOGGER = Logging.getLogger(ServiceMessageHandler.class);
   private static final int DEFAULT_KEEPALIVE_INTERVAL = 1000;
@@ -43,7 +44,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   private final int maxConcurrentRequests;
   private final int batchSize;
   private final long keepAliveInterval;
-
+  private final long shutdownWait;
   private ExecutorService executor;
 
   //metrics
@@ -56,17 +57,19 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   private final LongAdder exceptions = new LongAdder();
   private final LongAdder undeclaredExceptions = new LongAdder();
 
-  private ServiceMessageHandler(Service service, ServiceSessionFactory sessionFactory, int maxConcurrentRequests, int batchSize, long keepAliveInterval) {
+  private ServiceMessageHandler(Service service, ServiceSessionFactory sessionFactory, int maxConcurrentRequests, int batchSize, long keepAliveInterval, long shutdownWait) {
     if (service == null) throw new IllegalArgumentException("service not set");
     if (sessionFactory == null) throw new IllegalArgumentException("sessionFactory not set");
     if (maxConcurrentRequests < 1) throw new IllegalArgumentException("maxConcurrentRequests must be a positive integer");
     if (batchSize < 1) throw new IllegalArgumentException("batchSize must be a positive integer");
     if (keepAliveInterval < 1) throw new IllegalArgumentException("keepAliveInterval must be a positive integer");
+    if (shutdownWait < 1) throw new IllegalArgumentException("shutdownWait must be a positive integer");
     this.sessionFactory = sessionFactory;
     this.service = service;
     this.maxConcurrentRequests = maxConcurrentRequests;
     this.batchSize = batchSize;
     this.keepAliveInterval = keepAliveInterval;
+    this.shutdownWait = shutdownWait;
   }
 
   @Override
@@ -80,7 +83,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
     if (executor != null) {
       executor.shutdown();
       try {
-        if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+        if (!executor.awaitTermination(shutdownWait, TimeUnit.MILLISECONDS)) {
           LOGGER.warning("Executor still not finished");
         }
       } catch (InterruptedException e) {
@@ -200,10 +203,16 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
     private int batchSize = DEFAULT_BATCH_SIZE;
     private int maxConcurrentRequests = DEFAULT_MAX_CONCURRENT_REQUESTS;
     private long keepAliveInterval = DEFAULT_KEEPALIVE_INTERVAL;
+    private long shutdownWait = DEFAULT_SHUTDOWN_WAIT_MS;
 
     public ServiceMessageHandler build() {
       if (service == null) throw new IllegalArgumentException("service not set");
-      return new ServiceMessageHandler(service, sessionFactory, maxConcurrentRequests, batchSize, keepAliveInterval);
+      return new ServiceMessageHandler(service, sessionFactory, maxConcurrentRequests, batchSize, keepAliveInterval, shutdownWait);
+    }
+
+    public Builder setShutdownWait(long shutdownWait) {
+      this.shutdownWait = shutdownWait;
+      return this;
     }
 
     public Builder setSessionFactory(ServiceSessionFactory sessionFactory) {
