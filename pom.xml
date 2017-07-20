@@ -44,7 +44,7 @@
     <!-- external dependencies -->
     <junit.version>4.12</junit.version>
     <mockito.version>2.7.4</mockito.version>
-    <mnemonic.commons.version>0.1.0</mnemonic.commons.version>
+    <mnemonic.commons.version>0.1.5</mnemonic.commons.version>
     <mnemonic.messaging.version>1.0.2</mnemonic.messaging.version>
     <cglib.version>3.2.4</cglib.version>
     <activemq.version>5.14.1</activemq.version>
