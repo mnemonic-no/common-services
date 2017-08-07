@@ -176,7 +176,9 @@ public class ServiceMessageClient<T extends Service> {
   private Object handleValueResponse(RequestHandler handler) throws Throwable {
     ServiceResponseMessage response;
     try {
-      handler.waitForEndOfStream(maxWait);
+      while (!handler.waitForEndOfStream(maxWait)) {
+        if (LOGGER.isDebug()) LOGGER.debug("Waiting for stream to close");
+      }
       response = handler.getNextResponse(1);
     } catch (InvocationTargetException e) {
       throw e.getTargetException();

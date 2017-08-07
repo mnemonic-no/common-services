@@ -115,7 +115,7 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
       endOfStream.get(150, TimeUnit.MILLISECONDS);
       fail();
     } catch (TimeoutException ignored) {}
-    verify(signalContext).keepAlive(anyLong());
+    verify(signalContext, times(2)).keepAlive(anyLong());
     assertTrue(keepAlive.get() > System.currentTimeMillis());
     result.complete("value");
     endOfStream.get(100, TimeUnit.MILLISECONDS);
