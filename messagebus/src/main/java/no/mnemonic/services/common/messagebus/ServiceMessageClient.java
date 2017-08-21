@@ -15,9 +15,13 @@ import org.objectweb.asm.Type;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Function;
 
 /**
  * A Service Message Client acts as a factory, providing an interface implementation which
@@ -37,6 +41,7 @@ public class ServiceMessageClient<T extends Service> {
   private final long maxWait;
   private final Class<T> proxyInterface;
   private final RequestSink requestSink;
+  private final Map<Class<?>, Function<ResultSet, ? extends ResultSet>> extenderFunctions;
 
   //variables
   private final AtomicReference<T> proxy = new AtomicReference<>();
@@ -53,11 +58,13 @@ public class ServiceMessageClient<T extends Service> {
    * @param proxyInterface the class of the service interface
    * @param requestSink the requestsink to use for messaging. Must be attached to a ServiceMessageHandler on the other side.
    * @param maxWait the maximum milliseconds to wait for replies from the requestsink (will allow keepalives to extend this)
+   * @param extenderFunctions functions to extend resultset return types to subclasses, where subclasses are declared
    */
-  private ServiceMessageClient(Class<T> proxyInterface, RequestSink requestSink, long maxWait) {
+  private ServiceMessageClient(Class<T> proxyInterface, RequestSink requestSink, long maxWait, Map<Class<?>, Function<ResultSet, ? extends ResultSet>> extenderFunctions) {
     this.maxWait = maxWait;
     this.proxyInterface = proxyInterface;
     this.requestSink = requestSink;
+    this.extenderFunctions = extenderFunctions;
   }
 
   //interface methods
@@ -142,7 +149,7 @@ public class ServiceMessageClient<T extends Service> {
       return invoke(proxy, arguments, method.getReturnType());
     }
 
-    private Object invoke(MethodProxy proxy, Object[] arguments, Class<?> returnType) throws Throwable {
+    private Object invoke(MethodProxy proxy, Object[] arguments, Class<?> declaredReturnType) throws Throwable {
       requests.increment();
       //noinspection unused
       try (TimerContext timer = TimerContext.timerMillis(totalRequestTime::add)) {
@@ -157,7 +164,7 @@ public class ServiceMessageClient<T extends Service> {
 
         if (LOGGER.isDebug()) LOGGER.debug("Signalling request");
         RequestHandler handler = RequestHandler.signal(requestSink, msg, true, maxWait);
-        return handleResponses(handler, returnType);
+        return handleResponses(handler, declaredReturnType);
       } catch (Exception e) {
         LOGGER.error(e, "Error invoking remote method");
         throw e;
@@ -165,9 +172,10 @@ public class ServiceMessageClient<T extends Service> {
     }
   }
 
-  private Object handleResponses(RequestHandler handler, Class<?> returnType) throws Throwable {
-    if (ResultSet.class.isAssignableFrom(returnType)) {
-      return handleStreamingResponse(handler);
+  private Object handleResponses(RequestHandler handler, Class<?> declaredReturnType) throws Throwable {
+    if (ResultSet.class.isAssignableFrom(declaredReturnType)) {
+      //noinspection unchecked
+      return handleStreamingResponse(handler, (Class<ResultSet>) declaredReturnType);
     } else {
       return handleValueResponse(handler);
     }
@@ -188,8 +196,17 @@ public class ServiceMessageClient<T extends Service> {
     return ((ServiceResponseValueMessage) response).getReturnValue();
   }
 
-  private ResultSet handleStreamingResponse(RequestHandler handler) throws Throwable {
-    return new StreamingResultSetContext(handler, maxWait);
+  private <R extends ResultSet> R handleStreamingResponse(RequestHandler handler, Class<R> declaredReturnType) throws Throwable {
+    if (extenderFunctions.containsKey(declaredReturnType)) {
+      ResultSet result = new StreamingResultSetContext(handler, maxWait);
+      //noinspection unchecked
+      return (R) extenderFunctions.get(declaredReturnType).apply(result);
+    } else if (declaredReturnType.equals(ResultSet.class)) {
+      //noinspection unchecked
+      return (R) new StreamingResultSetContext(handler, maxWait);
+    } else {
+      throw new IllegalStateException("Declared returntype of invoked method is a subclass of ResultSet, but no extender function is defined for this type");
+    }
   }
 
   public static <V extends Service> Builder<V> builder() {
@@ -207,15 +224,21 @@ public class ServiceMessageClient<T extends Service> {
     private long maxWait;
     private Class<V> proxyInterface;
     private RequestSink requestSink;
+    private final Map<Class<?>, Function<ResultSet, ? extends ResultSet>> extenderFunctions = new HashMap<>();
 
     public ServiceMessageClient<V> build() {
       if (proxyInterface == null) throw new IllegalArgumentException("proxyInterface not set");
       if (requestSink == null) throw new IllegalArgumentException("requestSink not set");
       if (maxWait < 0) throw new IllegalArgumentException("maxWait must be a non-negative integer");
-      return new ServiceMessageClient<>(proxyInterface, requestSink, maxWait);
+      return new ServiceMessageClient<>(proxyInterface, requestSink, maxWait, Collections.unmodifiableMap(extenderFunctions));
     }
 
     //setters
+
+    public <R extends ResultSet> Builder<V> withExtenderFunction(Class<R> returnType, Function<ResultSet, R> extenderFunction) {
+      this.extenderFunctions.put(returnType, extenderFunction);
+      return this;
+    }
 
     public Builder<V> setMaxWait(long maxWait) {
       this.maxWait = maxWait;

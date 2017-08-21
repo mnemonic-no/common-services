@@ -26,4 +26,9 @@ public interface TestService extends Service {
   String primitiveArrayArgument(long[] arg);
 
   ResultSet<String> getResultSet(String arg);
+
+  MyResultSet<String> getMyResultSet(String arg);
+
+  public abstract class MyResultSet<T> implements ResultSet<T> {
+  }
 }

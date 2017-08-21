@@ -118,6 +118,49 @@ public class ServiceMessageClientTest {
     proxy().getResultSet("arg");
   }
 
+  @Test(expected = IllegalStateException.class)
+  public void testResultSetSubclassWithoutExtenderFunction() {
+    proxy().getMyResultSet("arg");
+  }
+
+  @Test
+  public void testResultSetWithExtenderFunction() throws InterruptedException, ExecutionException, TimeoutException {
+    Future<RequestContext> ctxref = mockResultSetResponse();
+    TestService proxy = ServiceMessageClient.builder(TestService.class)
+            .setRequestSink(requestSink).setMaxWait(100)
+            .withExtenderFunction(TestService.MyResultSet.class, rs->{
+              return new TestService.MyResultSet() {
+                @Override
+                public int getCount() {
+                  return rs.getCount();
+                }
+
+                @Override
+                public int getLimit() {
+                  return rs.getLimit();
+                }
+
+                @Override
+                public int getOffset() {
+                  return rs.getOffset();
+                }
+
+                @Override
+                public Iterator iterator() throws ResultSetStreamInterruptedException {
+                  return rs.iterator();
+                }
+              };
+            })
+            .build()
+            .getInstance();
+
+    Future<ResultSet<String>> result = executor.submit(() -> proxy.getMyResultSet("arg"));
+    RequestContext ctx = ctxref.get();
+    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(0, list("a", "b", "c"), true));
+    ctx.endOfStream();
+    assertEquals(list("a", "b", "c"), list(result.get(1000, TimeUnit.MILLISECONDS).iterator()));
+  }
+
   @Test
   public void testResultSetSingleBatch() throws InterruptedException, ExecutionException, TimeoutException {
     Future<RequestContext> ctxref = mockResultSetResponse();
