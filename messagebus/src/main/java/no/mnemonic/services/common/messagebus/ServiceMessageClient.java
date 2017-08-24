@@ -184,10 +184,8 @@ public class ServiceMessageClient<T extends Service> {
   private Object handleValueResponse(RequestHandler handler) throws Throwable {
     ServiceResponseMessage response;
     try {
-      while (!handler.waitForEndOfStream(maxWait)) {
-        if (LOGGER.isDebug()) LOGGER.debug("Waiting for stream to close");
-      }
-      response = handler.getNextResponse(1);
+      //wait until response is received, or stream is closed
+      response = handler.getNextResponse();
     } catch (InvocationTargetException e) {
       throw e.getTargetException();
     }
@@ -198,12 +196,12 @@ public class ServiceMessageClient<T extends Service> {
 
   private <R extends ResultSet> R handleStreamingResponse(RequestHandler handler, Class<R> declaredReturnType) throws Throwable {
     if (extenderFunctions.containsKey(declaredReturnType)) {
-      ResultSet result = new StreamingResultSetContext(handler, maxWait);
+      ResultSet result = new StreamingResultSetContext(handler);
       //noinspection unchecked
       return (R) extenderFunctions.get(declaredReturnType).apply(result);
     } else if (declaredReturnType.equals(ResultSet.class)) {
       //noinspection unchecked
-      return (R) new StreamingResultSetContext(handler, maxWait);
+      return (R) new StreamingResultSetContext(handler);
     } else {
       throw new IllegalStateException("Declared returntype of invoked method is a subclass of ResultSet, but no extender function is defined for this type");
     }

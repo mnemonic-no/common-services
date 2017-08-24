@@ -28,26 +28,22 @@ public class StreamingResultSetContext implements ResultSet {
   private final int count;
   private final int limit;
   private final int offset;
-  private final long maxWait;
   private final AtomicInteger lastIndex = new AtomicInteger();
   private final AtomicBoolean lastMessageReceived = new AtomicBoolean();
 
   /**
    *
    * @param handler the requesthandler which is controlling the request
-   * @param maxWait maximum number of milliseconds to wait for replies (will allow keepalives to extend this)
    * @throws Throwable any exception thrown by the invoked method can be thrown here.
    */
-  StreamingResultSetContext(RequestHandler handler, long maxWait) throws Throwable {
+  StreamingResultSetContext(RequestHandler handler) throws Throwable {
     if (handler == null) throw new IllegalArgumentException("Handler is null");
-    if (maxWait < 0) throw new IllegalArgumentException("Maxwait must be a non-negative integer");
     this.handler = handler;
-    this.maxWait = maxWait;
     ServiceStreamingResultSetResponseMessage b;
 
     //wait for initial response
     try {
-      b = handler.getNextResponse(maxWait);
+      b = handler.getNextResponse();
       if (b == null) throw new ServiceTimeOutException("Initial resultset not received");
     } catch (InvocationTargetException e) {
       throw e.getTargetException();
@@ -92,7 +88,7 @@ public class StreamingResultSetContext implements ResultSet {
           if (handler.isClosed() && lastMessageReceived.get()) return false;
 
           //check handler for more data
-          ServiceStreamingResultSetResponseMessage nextBatch = handler.getNextResponse(maxWait);
+          ServiceStreamingResultSetResponseMessage nextBatch = handler.getNextResponse();
           //timeout/EOS occurred
           if (nextBatch == null) {
             if (!handler.isClosed()) {

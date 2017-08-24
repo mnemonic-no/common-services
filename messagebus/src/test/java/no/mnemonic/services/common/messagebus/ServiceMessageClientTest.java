@@ -20,9 +20,7 @@ import java.util.function.Supplier;
 
 import static no.mnemonic.commons.testtools.MockitoTools.match;
 import static no.mnemonic.commons.utilities.collections.ListUtils.list;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -225,6 +223,33 @@ public class ServiceMessageClientTest {
   }
 
   @Test
+  public void testResultSetMultipleBatchesWithInitialTimeout() throws InterruptedException, ExecutionException, TimeoutException {
+    Future<RequestContext> ctxref = mockResultSetResponse();
+    Future<ResultSet<String>> result = invokeResultSet();
+    RequestContext ctx = ctxref.get(1000, TimeUnit.MILLISECONDS);
+    assertTrue(ctx.keepAlive(System.currentTimeMillis() + 10000));
+    Thread.sleep(1000);
+    assertFalse(ctx.isClosed());
+    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(0, list("a", "b", "c"), true));
+    ctx.endOfStream();
+    assertEquals(list("a", "b", "c"), list(result.get(1000, TimeUnit.MILLISECONDS).iterator()));
+  }
+
+  @Test
+  public void testResultSetMultipleBatchesWithStreamTimeout() throws InterruptedException, ExecutionException, TimeoutException {
+    Future<RequestContext> ctxref = mockResultSetResponse();
+    Future<ResultSet<String>> result = invokeResultSet();
+    RequestContext ctx = ctxref.get(1000, TimeUnit.MILLISECONDS);
+    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(0, list("a", "b", "c")));
+    ctx.keepAlive(10000);
+    Thread.sleep(1000);
+    assertFalse(ctx.isClosed());
+    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(1, list("d", "e", "f"), true));
+    ctx.endOfStream();
+    assertEquals(list("a", "b", "c", "d", "e", "f"), list(result.get(1000, TimeUnit.MILLISECONDS).iterator()));
+  }
+
+  @Test
   public void testResultSetReceivesStreamingResults() throws InterruptedException, ExecutionException, TimeoutException {
     Future<RequestContext> ctxref = mockResultSetResponse();
     Future<ResultSet<String>> result = invokeResultSet();
@@ -269,7 +294,8 @@ public class ServiceMessageClientTest {
 
   private TestService proxy() {
     return ServiceMessageClient.builder(TestService.class)
-            .setRequestSink(requestSink).setMaxWait(100)
+            .setRequestSink(requestSink)
+            .setMaxWait(100)
             .build()
             .getInstance();
   }
