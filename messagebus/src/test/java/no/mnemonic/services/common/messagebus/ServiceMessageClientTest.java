@@ -1,6 +1,9 @@
 package no.mnemonic.services.common.messagebus;
 
+import no.mnemonic.commons.metrics.MetricException;
 import no.mnemonic.commons.testtools.MockitoTools;
+import no.mnemonic.commons.utilities.collections.ListUtils;
+import no.mnemonic.commons.utilities.lambda.LambdaUtils;
 import no.mnemonic.messaging.requestsink.RequestContext;
 import no.mnemonic.messaging.requestsink.RequestSink;
 import no.mnemonic.services.common.api.ResultSet;
@@ -21,10 +24,10 @@ import java.util.function.Supplier;
 import static no.mnemonic.commons.testtools.MockitoTools.match;
 import static no.mnemonic.commons.utilities.collections.ListUtils.list;
 import static org.junit.Assert.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
 public class ServiceMessageClientTest {
 
@@ -92,6 +95,41 @@ public class ServiceMessageClientTest {
   public void testSingleValueResponse() {
     mockSingleResponse();
     assertEquals("value", proxy().getString("arg"));
+  }
+
+  @Test
+  public void testInvocationMetrics() throws MetricException {
+    mockSingleResponse();
+    ServiceMessageClient<TestService> client = ServiceMessageClient.builder(TestService.class).setRequestSink(requestSink).setMaxWait(100).build();
+    assertEquals(0L, client.getMetrics().getData("requests").longValue());
+    TestService service = client.getInstance();
+    assertEquals("value", service.getString("arg"));
+    assertEquals(1L, client.getMetrics().getData("requests").longValue());
+    assertEquals(0L, client.getMetrics().getData("errors").longValue());
+  }
+
+  @Test
+  public void testErrorMetricsOnInitialTimeout() throws MetricException {
+    ServiceMessageClient<TestService> client = ServiceMessageClient.builder(TestService.class).setMaxWait(100).setRequestSink(requestSink).build();
+    TestService service = client.getInstance();
+    assertFalse(LambdaUtils.tryTo(()->service.getString("arg")));
+    assertEquals(1L, client.getMetrics().getData("errors").longValue());
+  }
+
+  @Test
+  public void testErrorMetricsOnStreamTimeout() throws InterruptedException, ExecutionException, TimeoutException, MetricException {
+    ServiceMessageClient<TestService> client = ServiceMessageClient.builder(TestService.class).setMaxWait(500).setRequestSink(requestSink).build();
+    Future<RequestContext> ctxref = mockResultSetResponse();
+    //invoke a resultset
+    Future<ResultSet<String>> result = executor.submit(() -> client.getInstance().getResultSet("arg"));
+    RequestContext ctx = ctxref.get(200, TimeUnit.MILLISECONDS);
+    //add initial response
+    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(0, list("a", "b", "c")));
+    ResultSet<String> rs = result.get(100, TimeUnit.MILLISECONDS);
+    //verify that we got an error when iterating the stream (due to timeout)
+    assertFalse(LambdaUtils.tryTo(()->ListUtils.list(rs.iterator())));
+    //verify that the error was counted correctly
+    assertEquals(1L, client.getMetrics().getData("errors").longValue());
   }
 
   @Test(expected = ServiceTimeOutException.class)

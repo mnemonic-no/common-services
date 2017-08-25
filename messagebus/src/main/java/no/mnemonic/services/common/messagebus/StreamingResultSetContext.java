@@ -15,6 +15,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * A {@link ResultSet} implementation which reads a stream of result batches
@@ -23,6 +24,7 @@ public class StreamingResultSetContext implements ResultSet {
 
   private static final Logger LOGGER = Logging.getLogger(StreamingResultSetContext.class);
 
+  private final Consumer<Throwable> onError;
   private final RequestHandler handler;
   private final BlockingQueue<Object> values = new LinkedBlockingDeque<>();
   private final int count;
@@ -36,9 +38,11 @@ public class StreamingResultSetContext implements ResultSet {
    * @param handler the requesthandler which is controlling the request
    * @throws Throwable any exception thrown by the invoked method can be thrown here.
    */
-  StreamingResultSetContext(RequestHandler handler) throws Throwable {
+  StreamingResultSetContext(RequestHandler handler, Consumer<Throwable> onError) throws Throwable {
     if (handler == null) throw new IllegalArgumentException("Handler is null");
+    if (onError == null) throw new IllegalArgumentException("Error consumer is null");
     this.handler = handler;
+    this.onError = onError;
     ServiceStreamingResultSetResponseMessage b;
 
     //wait for initial response
@@ -49,6 +53,7 @@ public class StreamingResultSetContext implements ResultSet {
       throw e.getTargetException();
     }
     if (LOGGER.isDebug()) LOGGER.debug("Got initial batch");
+    //do not register error here, since this thread is called from ServiceMessageClient, which will register the error
     if (b.getIndex() != 0) throw new ResultSetStreamInterruptedException("Initial resultset message has non-initial index: " + b.getIndex());
 
     //these values should never change in subsequent resultset batches
@@ -119,14 +124,17 @@ public class StreamingResultSetContext implements ResultSet {
 
         } catch (UndeclaredThrowableException e) {
           LOGGER.warning(e, "Resultset stream interrupted");
+          onError.accept(e);
           handler.close();
           throw new ResultSetStreamInterruptedException(e.getUndeclaredThrowable());
         } catch (InvocationTargetException e) {
           LOGGER.warning(e, "Resultset stream interrupted");
+          onError.accept(e);
           handler.close();
           throw new ResultSetStreamInterruptedException(e.getTargetException());
         } catch (Exception e) {
           LOGGER.warning(e, "Resultset stream interrupted");
+          onError.accept(e);
           handler.close();
           throw new ResultSetStreamInterruptedException(e);
         }

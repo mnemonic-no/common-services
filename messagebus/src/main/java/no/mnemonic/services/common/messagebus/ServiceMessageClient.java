@@ -5,7 +5,7 @@ import net.sf.cglib.proxy.MethodInterceptor;
 import net.sf.cglib.proxy.MethodProxy;
 import no.mnemonic.commons.logging.Logger;
 import no.mnemonic.commons.logging.Logging;
-import no.mnemonic.commons.metrics.TimerContext;
+import no.mnemonic.commons.metrics.*;
 import no.mnemonic.messaging.requestsink.RequestHandler;
 import no.mnemonic.messaging.requestsink.RequestSink;
 import no.mnemonic.services.common.api.ResultSet;
@@ -26,14 +26,13 @@ import java.util.function.Function;
 /**
  * A Service Message Client acts as a factory, providing an interface implementation which
  * proxies requests across a RequestSink infrastructure.
- *
+ * <p>
  * This requires a requestSink which is attached to a ServiceMessageHandler on the other end.
  *
  * @param <T> the type of the service interface
- *
  */
 @SuppressWarnings("WeakerAccess")
-public class ServiceMessageClient<T extends Service> {
+public class ServiceMessageClient<T extends Service> implements MetricAspect {
 
   private static final Logger LOGGER = Logging.getLogger(ServiceMessageClient.class);
 
@@ -49,12 +48,14 @@ public class ServiceMessageClient<T extends Service> {
   //metrics
 
   private final LongAdder requests = new LongAdder();
+  private final LongAdder errors = new LongAdder();
   private final LongAdder totalRequestTime = new LongAdder();
 
   //constructor
 
   /**
    * Create a new Service Message Client
+   *
    * @param proxyInterface the class of the service interface
    * @param requestSink the requestsink to use for messaging. Must be attached to a ServiceMessageHandler on the other side.
    * @param maxWait the maximum milliseconds to wait for replies from the requestsink (will allow keepalives to extend this)
@@ -68,6 +69,15 @@ public class ServiceMessageClient<T extends Service> {
   }
 
   //interface methods
+
+  @Override
+  public Metrics getMetrics() throws MetricException {
+    return new MetricsData()
+            .addData("requests", requests)
+            .addData("errors", errors)
+            .addData("totalRequestTime", totalRequestTime);
+  }
+
 
   //public methods
 
@@ -167,6 +177,7 @@ public class ServiceMessageClient<T extends Service> {
         return handleResponses(handler, declaredReturnType);
       } catch (Exception e) {
         LOGGER.error(e, "Error invoking remote method");
+        errors.increment();
         throw e;
       }
     }
@@ -196,12 +207,12 @@ public class ServiceMessageClient<T extends Service> {
 
   private <R extends ResultSet> R handleStreamingResponse(RequestHandler handler, Class<R> declaredReturnType) throws Throwable {
     if (extenderFunctions.containsKey(declaredReturnType)) {
-      ResultSet result = new StreamingResultSetContext(handler);
+      ResultSet result = new StreamingResultSetContext(handler, error -> errors.increment());
       //noinspection unchecked
       return (R) extenderFunctions.get(declaredReturnType).apply(result);
     } else if (declaredReturnType.equals(ResultSet.class)) {
       //noinspection unchecked
-      return (R) new StreamingResultSetContext(handler);
+      return (R) new StreamingResultSetContext(handler, error -> errors.increment());
     } else {
       throw new IllegalStateException("Declared returntype of invoked method is a subclass of ResultSet, but no extender function is defined for this type");
     }
