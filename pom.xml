@@ -3,7 +3,7 @@
   <groupId>no.mnemonic.services.common</groupId>
   <artifactId>parent</artifactId>
   <packaging>pom</packaging>
-  <version>0.1.13-SNAPSHOT</version>
+  <version>0.2.0-SNAPSHOT</version>
 
   <name>mnemonic common services</name>
   <description>Reusable Java components for building scalable microservices</description>
@@ -43,11 +43,12 @@
 
     <!-- external dependencies -->
     <junit.version>4.12</junit.version>
-    <mockito.version>2.7.4</mockito.version>
+    <mockito.version>2.8.47</mockito.version>
     <mnemonic.commons.version>0.1.5</mnemonic.commons.version>
     <mnemonic.messaging.version>1.0.3</mnemonic.messaging.version>
     <cglib.version>3.2.4</cglib.version>
     <activemq.version>5.14.1</activemq.version>
+    <swagger.version>1.5.16</swagger.version>
 
     <!-- build dependencies -->
     <maven.clean.version>3.0.0</maven.clean.version>
@@ -67,6 +68,7 @@
 
   <modules>
     <module>auth</module>
+    <module>documentation</module>
     <module>service-api</module>
     <module>messagebus</module>
   </modules>
