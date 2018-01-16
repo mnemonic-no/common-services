@@ -175,10 +175,6 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
         if (LOGGER.isDebug()) LOGGER.debug("Signalling request");
         RequestHandler handler = RequestHandler.signal(requestSink, msg, true, maxWait);
         return handleResponses(handler, declaredReturnType);
-      } catch (Exception e) {
-        LOGGER.error(e, "Error invoking remote method");
-        errors.increment();
-        throw e;
       }
     }
   }
@@ -200,7 +196,10 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     } catch (InvocationTargetException e) {
       throw e.getTargetException();
     }
-    if (response == null) throw new ServiceTimeOutException();
+    if (response == null) {
+      errors.increment();
+      throw new ServiceTimeOutException();
+    }
     if (LOGGER.isDebug()) LOGGER.debug("Got single response");
     return ((ServiceResponseValueMessage) response).getReturnValue();
   }
