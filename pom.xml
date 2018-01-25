@@ -39,7 +39,7 @@
 
     <!-- mnemonic dependencies -->
     <mnemonic.commons.version>0.2.5</mnemonic.commons.version>
-    <mnemonic.messaging.version>1.0.6</mnemonic.messaging.version>
+    <mnemonic.messaging.version>1.0.7</mnemonic.messaging.version>
 
     <!-- external dependencies -->
     <activemq.version>5.15.2</activemq.version>

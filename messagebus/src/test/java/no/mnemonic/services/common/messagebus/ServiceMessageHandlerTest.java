@@ -11,13 +11,16 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static no.mnemonic.commons.utilities.collections.ListUtils.list;
 import static org.junit.Assert.*;
@@ -30,6 +33,7 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
   private static final String METHOD_GET_STRING = "getString";
   private static final String METHOD_PRIMITIVE_LONG_ARGUMENT = "primitiveLongArgument";
   private static final String METHOD_GET_RESULTSET = "getResultSet";
+  private static final String METHOD_GET_RESULTSET_WITH_BATCH_SIZE = "getResultSetWithBatchSize";
 
   @Mock
   private TestService testService;
@@ -60,6 +64,7 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
     when(testService.objectArrayArgument(any())).thenReturn("result");
     when(testService.primitiveArrayArgument(any())).thenReturn("result");
     when(testService.getResultSet(any())).thenReturn(createResultSet(createResults(3)));
+    when(testService.getResultSetWithBatchSize(any())).thenReturn(createResultSet(createResults(3)));
     when(sessionFactory.openSession()).thenReturn(session);
 
     when(signalContext.addResponse(any())).thenAnswer(i -> responses.add(i.getArgument(0)));
@@ -148,6 +153,21 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
   }
 
   @Test
+  public void testResultSetResponseWithBatchSize() throws InvocationTargetException, InterruptedException, ExecutionException, TimeoutException {
+    sendSignal(METHOD_GET_RESULTSET_WITH_BATCH_SIZE);
+    endOfStream.get(1000000, TimeUnit.MILLISECONDS);
+    assertEquals(3, responses.size());
+    //noinspection Convert2MethodRef
+    List<String> results = responses.stream()
+            .map(r->ServiceStreamingResultSetResponseMessage.class.cast(r))
+            .map(ServiceStreamingResultSetResponseMessage::getBatch)
+            .flatMap(Collection::stream)
+            .map(s->String.class.cast(s))
+            .collect(Collectors.toList());
+    assertEquals(list("val0", "val1", "val2"), results);
+  }
+
+  @Test
   public void testResultSetStreamingResponse() throws InvocationTargetException, InterruptedException, ExecutionException, TimeoutException {
     when(testService.getResultSet(any())).thenReturn(createResultSet(createResults(6)));
     sendSignal(METHOD_GET_RESULTSET);
@@ -157,8 +177,8 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
 
     response = (ServiceStreamingResultSetResponseMessage) responses.poll();
     assertNotNull(response);
-    assertTrue(responses.isEmpty());
     assertEquals(list("val5"), response.getBatch());
+    assertTrue(responses.isEmpty());
   }
 
   @Test

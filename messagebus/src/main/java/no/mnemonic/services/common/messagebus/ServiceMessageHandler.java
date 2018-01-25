@@ -16,8 +16,8 @@ import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.ServiceSession;
 import no.mnemonic.services.common.api.ServiceSessionFactory;
+import no.mnemonic.services.common.api.annotations.ResultBatchSize;
 
-import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.Clock;
@@ -32,9 +32,9 @@ import java.util.concurrent.atomic.LongAdder;
 
 public class ServiceMessageHandler implements RequestSink, LifecycleAspect, MetricAspect {
 
-  public static final int DEFAULT_SHUTDOWN_WAIT_MS = 10000;
   private static Clock clock = Clock.systemUTC();
   private static final Logger LOGGER = Logging.getLogger(ServiceMessageHandler.class);
+  private static final int DEFAULT_SHUTDOWN_WAIT_MS = 10000;
   private static final int DEFAULT_KEEPALIVE_INTERVAL = 1000;
   private static final int DEFAULT_BATCH_SIZE = 100;
   private static final int DEFAULT_MAX_CONCURRENT_REQUESTS = 10;
@@ -91,6 +91,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
         }
       } catch (InterruptedException e) {
         LOGGER.warning(e, "Error waiting for executor shutdown");
+        Thread.currentThread().interrupt();
       }
     }
   }
@@ -125,6 +126,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
 
     try (TimerContext ignored = TimerContext.timerMillis(handlingTime::add)) {
       ServiceRequestMessage request = (ServiceRequestMessage) msg;
+      //execute actual method invocation in separate thread
       Future<?> future = executor.submit(() -> handleRequest(request, signalContext));
 
       //initial keepalive
@@ -134,6 +136,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
         signalContext.keepAlive(clock.millis() + (2 * keepAliveInterval));
         keepAlives.increment();
       }
+      //when future is resolved, the handler is done, so we can return
     }
     return signalContext;
   }
@@ -142,7 +145,9 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   private void handleRequest(ServiceRequestMessage request, RequestContext signalContext) {
     try (ServiceSession ignored = sessionFactory.openSession()) {
 
+      //determine method to invoke
       Method method = service.getClass().getMethod(request.getMethodName(), parseTypes(request.getArgumentTypes()));
+
       Object returnValue;
       //noinspection unused
       try (TimerContext timer = TimerContext.timerMillis(executionTime::add)) {
@@ -150,24 +155,32 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
       }
 
       if (returnValue instanceof ResultSet) {
-        handleResultSet(request, (ResultSet) returnValue, signalContext);
+        //if result is a ResultSet, perform streaming result set handling
+        handleResultSet(request.getRequestID(), method, (ResultSet) returnValue, signalContext);
       } else {
+        //else send single object response
         signalContext.addResponse(ServiceResponseValueMessage.create(request.getRequestID(), returnValue));
       }
 
-    } catch (Throwable e) {
-      exceptions.increment();
-      if (e instanceof InvocationTargetException) {
-        e = ((InvocationTargetException) e).getTargetException();
-      }
-      if (isUndeclaredException(e)) {
-        undeclaredExceptions.increment();
-        LOGGER.warning(e, "Error handling request");
-      }
-      signalContext.notifyError(e);
+    } catch (InvocationTargetException e) {
+      handleException(signalContext, e.getTargetException());
+    } catch (Exception e) {
+      handleException(signalContext, e);
     } finally {
+      //finally, on either normal result or exception, signal end-of-stream
       signalContext.endOfStream();
     }
+  }
+
+  private void handleException(RequestContext signalContext, Throwable e) {
+    exceptions.increment();
+    if (isUndeclaredException(e)) {
+      //undeclared exceptions are concidered non-expected, and are counted and logged
+      undeclaredExceptions.increment();
+      LOGGER.warning(e, "Error handling request");
+    }
+    //send error signal to client
+    signalContext.notifyError(e);
   }
 
   private Class[] parseTypes(String[] types) throws ClassNotFoundException {
@@ -204,18 +217,19 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
     return e instanceof RuntimeException || e instanceof Error;
   }
 
-  private void handleResultSet(ServiceRequestMessage request, ResultSet resultSet, RequestContext signalContext) {
+  private void handleResultSet(String requestID, Method method, ResultSet resultSet, RequestContext signalContext) {
     ServiceStreamingResultSetResponseMessage.Builder builder = ServiceStreamingResultSetResponseMessage.builder()
-            .setRequestID(request.getRequestID())
+            .setRequestID(requestID)
             .setCount(resultSet.getCount())
             .setLimit(resultSet.getLimit())
             .setOffset(resultSet.getOffset());
 
+    int methodBatchSize = determineBatchSize(method);
     int batchIndex = 0;
     Collection<Object> batch = new ArrayList<>();
 
     for (Object o : resultSet) {
-      if (batch.size() >= batchSize) {
+      if (batch.size() >= methodBatchSize) {
         resultSetBatches.increment();
         signalContext.addResponse(builder.build(batchIndex++, batch));
         batch = new ArrayList<>();
@@ -224,7 +238,13 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
     }
     //final batch
     //noinspection UnusedAssignment
-    signalContext.addResponse(builder.build(batchIndex++, batch, true));
+    signalContext.addResponse(builder.build(batchIndex, batch, true));
+  }
+
+  private int determineBatchSize(Method method) {
+    ResultBatchSize batchSize = method.getAnnotation(ResultBatchSize.class);
+    if (batchSize == null) return this.batchSize;
+    return batchSize.value();
   }
 
   @SuppressWarnings("WeakerAccess")

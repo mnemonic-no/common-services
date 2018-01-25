@@ -11,6 +11,7 @@ import no.mnemonic.messaging.requestsink.RequestSink;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.ServiceTimeOutException;
+import no.mnemonic.services.common.api.annotations.ResultSetExtention;
 import org.objectweb.asm.Type;
 
 import java.lang.reflect.InvocationTargetException;
@@ -19,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
@@ -56,16 +58,16 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
   /**
    * Create a new Service Message Client
    *
-   * @param proxyInterface the class of the service interface
-   * @param requestSink the requestsink to use for messaging. Must be attached to a ServiceMessageHandler on the other side.
-   * @param maxWait the maximum milliseconds to wait for replies from the requestsink (will allow keepalives to extend this)
+   * @param proxyInterface    the class of the service interface
+   * @param requestSink       the requestsink to use for messaging. Must be attached to a ServiceMessageHandler on the other side.
+   * @param maxWait           the maximum milliseconds to wait for replies from the requestsink (will allow keepalives to extend this)
    * @param extenderFunctions functions to extend resultset return types to subclasses, where subclasses are declared
    */
   private ServiceMessageClient(Class<T> proxyInterface, RequestSink requestSink, long maxWait, Map<Class<?>, Function<ResultSet, ? extends ResultSet>> extenderFunctions) {
     this.maxWait = maxWait;
     this.proxyInterface = proxyInterface;
     this.requestSink = requestSink;
-    this.extenderFunctions = extenderFunctions;
+    this.extenderFunctions = new ConcurrentHashMap<>(extenderFunctions);
   }
 
   //interface methods
@@ -101,7 +103,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     return (T) enhancer.create();
   }
 
-  private String[] fromTypes(Type[] types) throws ClassNotFoundException {
+  private static String[] fromTypes(Type[] types) {
     if (types == null) throw new IllegalArgumentException("Types was null!");
     String[] clz = new String[types.length];
     for (int i = 0; i < clz.length; i++) {
@@ -181,9 +183,11 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
 
   private Object handleResponses(RequestHandler handler, Class<?> declaredReturnType) throws Throwable {
     if (ResultSet.class.isAssignableFrom(declaredReturnType)) {
+      //if method returns a ResultSet, the handler will send a streaming response
       //noinspection unchecked
       return handleStreamingResponse(handler, (Class<ResultSet>) declaredReturnType);
     } else {
+      //else the handler will return a single response
       return handleValueResponse(handler);
     }
   }
@@ -194,26 +198,43 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
       //wait until response is received, or stream is closed
       response = handler.getNextResponse();
     } catch (InvocationTargetException e) {
+      //if we receive error notification from handler, getNextResponse will throw the error
       throw e.getTargetException();
     }
+    //if we received no response at all by the timeout limit, this is a service timeout
     if (response == null) {
       errors.increment();
       throw new ServiceTimeOutException();
     }
     if (LOGGER.isDebug()) LOGGER.debug("Got single response");
+    //else return single response
     return ((ServiceResponseValueMessage) response).getReturnValue();
   }
 
   private <R extends ResultSet> R handleStreamingResponse(RequestHandler handler, Class<R> declaredReturnType) throws Throwable {
-    if (extenderFunctions.containsKey(declaredReturnType)) {
-      ResultSet result = new StreamingResultSetContext(handler, error -> errors.increment());
+    if (declaredReturnType.equals(ResultSet.class)) {
+      //create streaming resultset context, counting all RequestHandler errors
       //noinspection unchecked
-      return (R) extenderFunctions.get(declaredReturnType).apply(result);
-    } else if (declaredReturnType.equals(ResultSet.class)) {
-      //noinspection unchecked
-      return (R) new StreamingResultSetContext(handler, error -> errors.increment());
+      return (R)new StreamingResultSetContext(handler, error -> errors.increment());
     } else {
-      throw new IllegalStateException("Declared returntype of invoked method is a subclass of ResultSet, but no extender function is defined for this type");
+      //if the declared method returns a subclass of ResultSet, we may need an extender function to
+      //extend the declared return type to the correct subclass
+      Function<ResultSet, ? extends ResultSet> extender = extenderFunctions.computeIfAbsent(declaredReturnType, this::resolveExtenderFunction);
+      //convert streaming resultset using extender function
+      //noinspection unchecked
+      return (R) extender.apply(new StreamingResultSetContext(handler, error -> errors.increment()));
+    }
+  }
+
+  private Function<ResultSet, ? extends ResultSet> resolveExtenderFunction(Class<?> declaredReturnType) {
+    ResultSetExtention resultSetExtention = declaredReturnType.getAnnotation(ResultSetExtention.class);
+    if (resultSetExtention == null) {
+      throw new IllegalStateException("Declared returntype of invoked method is a subclass of ResultSet, but no extender function is defined for this type: " + declaredReturnType);
+    }
+    try {
+      return resultSetExtention.extender().newInstance();
+    } catch (InstantiationException | IllegalAccessException e) {
+      throw new IllegalStateException("Declared resultset extention function could not be instantiated: " + resultSetExtention.extender(), e);
     }
   }
 
