@@ -134,10 +134,21 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
 
   @Test
   public void testSingleValueException() throws InterruptedException, ExecutionException, TimeoutException {
-    when(testService.getString(any())).thenThrow(new IllegalArgumentException("error"));
-    sendSignal(METHOD_GET_STRING);
+    when(testService.getString(any())).thenThrow(new IllegalArgumentException("exception"));
+    Future<RequestContext> ctx = sendSignal(METHOD_GET_STRING);
+    endOfStream.get(100000, TimeUnit.MILLISECONDS);
+    ctx.get(100, TimeUnit.MILLISECONDS);
+    assertEquals("exception", error.get(100, TimeUnit.MILLISECONDS).getMessage());
+  }
+
+  @Test
+  public void testErrorDuringExceptionHandling() throws InterruptedException, ExecutionException, TimeoutException {
+    when(testService.getString(any())).thenThrow(new IllegalArgumentException("exception"));
+    doThrow(new RuntimeException()).when(signalContext).notifyError(any());
+    Future<RequestContext> ctx = sendSignal(METHOD_GET_STRING);
     endOfStream.get(100, TimeUnit.MILLISECONDS);
-    assertEquals("error", error.get(100, TimeUnit.MILLISECONDS).getMessage());
+    ctx.get(100, TimeUnit.MILLISECONDS);
+    assertFalse(error.isDone());
   }
 
   @Test
@@ -216,10 +227,10 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
 
   //helpers
 
-  private void sendSignal(String method) {
+  private Future<RequestContext> sendSignal(String method) {
     ServiceMessageHandler handler = createHandler();
     ServiceRequestMessage req = createRequest(method).build();
-    executor.submit(() ->
+    return executor.submit(() ->
             handler.signal(req, signalContext, 1000)
     );
   }

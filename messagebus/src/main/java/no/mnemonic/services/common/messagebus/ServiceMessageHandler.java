@@ -131,7 +131,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
 
       //initial keepalive
       signalContext.keepAlive(clock.millis() + (2 * keepAliveInterval));
-      while (!LambdaUtils.tryTo(() -> future.get(keepAliveInterval, TimeUnit.MILLISECONDS))) {
+      while (!LambdaUtils.tryTo(() -> future.get(keepAliveInterval, TimeUnit.MILLISECONDS)) && !future.isDone()) {
         //send keepalive to twice the keepalive interval (so channel is not closed before next keepalive arrives)
         signalContext.keepAlive(clock.millis() + (2 * keepAliveInterval));
         keepAlives.increment();
