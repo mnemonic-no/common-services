@@ -174,7 +174,9 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
                 .setArguments(arguments)
                 .build();
 
-        if (LOGGER.isDebug()) LOGGER.debug("Signalling request");
+        if (LOGGER.isDebug()) {
+          LOGGER.debug(">> signal [callID=%s service=%s method=%s]", msg.getRequestID(), msg.getServiceName(), msg.getMethodName());
+        }
         RequestHandler handler = RequestHandler.signal(requestSink, msg, true, maxWait);
         return handleResponses(handler, declaredReturnType);
       }
@@ -204,9 +206,14 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     //if we received no response at all by the timeout limit, this is a service timeout
     if (response == null) {
       errors.increment();
+      if (LOGGER.isDebug()) {
+        LOGGER.debug("<< timeout");
+      }
       throw new ServiceTimeOutException();
     }
-    if (LOGGER.isDebug()) LOGGER.debug("Got single response");
+    if (LOGGER.isDebug()) {
+      LOGGER.debug("<< valueResponse [callID=%s]", response.getCallID());
+    }
     //else return single response
     return ((ServiceResponseValueMessage) response).getReturnValue();
   }

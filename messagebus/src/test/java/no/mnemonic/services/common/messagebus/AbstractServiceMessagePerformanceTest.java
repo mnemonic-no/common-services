@@ -4,8 +4,7 @@ import no.mnemonic.commons.container.ComponentContainer;
 import no.mnemonic.commons.metrics.TimerContext;
 import no.mnemonic.commons.testtools.AvailablePortFinder;
 import no.mnemonic.commons.utilities.lambda.LambdaUtils;
-import no.mnemonic.messaging.requestsink.jms.JMSConnection;
-import no.mnemonic.messaging.requestsink.jms.JMSConnectionImpl;
+import no.mnemonic.messaging.requestsink.jms.JMSBase;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestProxy;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestSink;
 import org.apache.activemq.broker.BrokerService;
@@ -41,26 +40,23 @@ public abstract class AbstractServiceMessagePerformanceTest extends AbstractServ
   }
 
 
-  JMSConnection createJMSConnection() {
-    return JMSConnectionImpl.builder()
+  <T extends JMSBase.BaseBuilder<T>> T addJMSConnection(T builder) {
+    return builder
             .setContextFactoryName("org.apache.activemq.jndi.ActiveMQInitialContextFactory")
             .setContextURL(String.format("failover:(tcp://localhost%d,tcp://localhost:%d)?initialReconnectDelay=100", port1, port2))
             .setConnectionFactoryName("ConnectionFactory")
-            .setProperty("trustAllPackages", "true")
-            .build();
+            .setConnectionProperty("trustAllPackages", "true");
   }
 
-  JMSRequestSink createJmsRequestSink(JMSConnection connection) {
+  JMSRequestSink createJmsRequestSink() {
     //set up request sink pointing at a vm-local topic
-    return JMSRequestSink.builder()
-            .addConnection(connection)
+    return addJMSConnection(JMSRequestSink.builder())
             .setDestinationName("dynamicQueues/TestService")
             .build();
   }
 
-  JMSRequestProxy createJMSProxy(JMSConnection connection, ServiceMessageHandler listener, int concurrency) {
-    return JMSRequestProxy.builder()
-            .addConnection(connection)
+  JMSRequestProxy createJMSProxy(ServiceMessageHandler listener, int concurrency) {
+    return addJMSConnection(JMSRequestProxy.builder())
             .setDestinationName("dynamicQueues/TestService")
             .setMaxConcurrentCalls(concurrency)
             .setRequestSink(listener)
@@ -68,15 +64,14 @@ public abstract class AbstractServiceMessagePerformanceTest extends AbstractServ
   }
 
   private int runTestClient(int threadID, int invocations, int maxWait) {
-    JMSConnection connection = createJMSConnection();
-    JMSRequestSink requestSink = createJmsRequestSink(connection);
+    JMSRequestSink requestSink = createJmsRequestSink();
 
     ServiceMessageClient client = ServiceMessageClient.builder(TestService.class)
             .setRequestSink(requestSink)
             .setMaxWait(maxWait)
             .build();
     TestService srv = (TestService) client.getInstance();
-    ComponentContainer clientContainer = ComponentContainer.create(connection, requestSink, client);
+    ComponentContainer clientContainer = ComponentContainer.create(requestSink, client);
 
     int successes = 0;
     int errors = 0;

@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -77,7 +78,10 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
 
   @Override
   public void startComponent() {
-    executor = Executors.newFixedThreadPool(maxConcurrentRequests);
+    executor = Executors.newFixedThreadPool(
+            maxConcurrentRequests,
+            new ThreadFactoryBuilder().setNamePrefix("ServiceMessageHandler").build()
+    );
   }
 
   @Override
@@ -111,8 +115,9 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
 
   @Override
   public <T extends RequestContext> T signal(Message msg, T signalContext, long maxWait) {
-    if (executor == null)
+    if (executor == null) {
       throw new IllegalStateException("Received signal before executor is set, is component started?");
+    }
     if (msg == null) throw new IllegalStateException("Message not provided");
     if (signalContext == null) throw new IllegalStateException("Signal context not provided");
 
@@ -121,26 +126,39 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
       ignoredRequests.increment();
       return signalContext;
     }
-    if (LOGGER.isDebug()) LOGGER.debug("Received signal");
+
     receivedRequests.increment();
 
     try (TimerContext ignored = TimerContext.timerMillis(handlingTime::add)) {
       ServiceRequestMessage request = (ServiceRequestMessage) msg;
+      if (LOGGER.isDebug()) {
+        LOGGER.debug("<< signal [callID=%s service=%s method=%s]", request.getRequestID(), request.getServiceName(), request.getMethodName());
+      }
       //execute actual method invocation in separate thread
       Future<?> future = executor.submit(() -> handleRequest(request, signalContext));
 
       //initial keepalive
-      signalContext.keepAlive(clock.millis() + (2 * keepAliveInterval));
+      sendKeepAlive(signalContext, request.getRequestID());
       while (!LambdaUtils.tryTo(() -> future.get(keepAliveInterval, TimeUnit.MILLISECONDS)) && !future.isDone()) {
-        //send keepalive to twice the keepalive interval (so channel is not closed before next keepalive arrives)
-        signalContext.keepAlive(clock.millis() + (2 * keepAliveInterval));
+        //send keepalive while request is being handled
+        sendKeepAlive(signalContext, request.getRequestID());
         keepAlives.increment();
       }
       //when future is resolved, the handler is done, so we can return
     }
     return signalContext;
   }
+
   //private methods
+
+  private void sendKeepAlive(RequestContext signalContext, String callID) {
+    //send keepalive with timeout twice the keepalive interval (so channel is not closed before next keepalive arrives)
+    long until = clock.millis() + (2 * keepAliveInterval);
+    if (LOGGER.isDebug()) {
+      LOGGER.debug(">> keepalive [callID=%s until=%s]", callID, new Date(until));
+    }
+    signalContext.keepAlive(until);
+  }
 
   private void handleRequest(ServiceRequestMessage request, RequestContext signalContext) {
     try (ServiceSession ignored = sessionFactory.openSession()) {
@@ -151,6 +169,9 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
       Object returnValue;
       //noinspection unused
       try (TimerContext timer = TimerContext.timerMillis(executionTime::add)) {
+        if (LOGGER.isDebug()) {
+          LOGGER.debug("# invoke [method=%s]", method);
+        }
         returnValue = method.invoke(service, request.getArguments());
       }
 
@@ -159,6 +180,9 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
         handleResultSet(request.getRequestID(), method, (ResultSet) returnValue, signalContext);
       } else {
         //else send single object response
+        if (LOGGER.isDebug()) {
+          LOGGER.debug(">> addResponse [callID=%s]", request.getRequestID());
+        }
         signalContext.addResponse(ServiceResponseValueMessage.create(request.getRequestID(), returnValue));
       }
 
@@ -168,6 +192,9 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
       handleException(signalContext, e);
     } finally {
       //finally, on either normal result or exception, signal end-of-stream
+      if (LOGGER.isDebug()) {
+        LOGGER.debug(">> endOfStream [callID=%s]", request.getRequestID());
+      }
       signalContext.endOfStream();
     }
   }
@@ -231,6 +258,9 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
     for (Object o : resultSet) {
       if (batch.size() >= methodBatchSize) {
         resultSetBatches.increment();
+        if (LOGGER.isDebug()) {
+          LOGGER.debug(">> addResponseBatch [callID=%s idx=%d size=%d]", requestID, batchIndex, batch.size());
+        }
         signalContext.addResponse(builder.build(batchIndex++, batch));
         batch = new ArrayList<>();
       }
@@ -238,6 +268,9 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
     }
     //final batch
     //noinspection UnusedAssignment
+    if (LOGGER.isDebug()) {
+      LOGGER.debug(">> addResponseBatch [callID=%s idx=%d size=%d last=true]", requestID, batchIndex, batch.size());
+    }
     signalContext.addResponse(builder.build(batchIndex, batch, true));
   }
 

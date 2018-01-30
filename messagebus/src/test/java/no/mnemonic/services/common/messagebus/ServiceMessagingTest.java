@@ -3,7 +3,6 @@ package no.mnemonic.services.common.messagebus;
 
 import no.mnemonic.commons.container.ComponentContainer;
 import no.mnemonic.commons.utilities.collections.ListUtils;
-import no.mnemonic.messaging.requestsink.jms.JMSConnection;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestProxy;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestSink;
 import no.mnemonic.services.common.api.ResultSet;
@@ -61,9 +60,8 @@ public class ServiceMessagingTest  extends AbstractServiceMessagePerformanceTest
             .setBatchSize(100)
             .build();
 
-    JMSConnection connection = createJMSConnection();
-    JMSRequestSink requestSink = createJmsRequestSink(connection);
-    JMSRequestProxy requestProxy = createJMSProxy(connection, listener, SERVER_THREADS);
+    JMSRequestSink requestSink = createJmsRequestSink();
+    JMSRequestProxy requestProxy = createJMSProxy(listener, SERVER_THREADS);
 
     CompletableFuture<Void> waitForConnection = new CompletableFuture<>();
     requestProxy.addJMSRequestProxyConnectionListener(p -> waitForConnection.complete(null));
@@ -73,7 +71,7 @@ public class ServiceMessagingTest  extends AbstractServiceMessagePerformanceTest
             .setMaxWait(1000)
             .build();
 
-    container = ComponentContainer.create(connection, listener, requestProxy, requestSink);
+    container = ComponentContainer.create(listener, requestProxy, requestSink);
     container.initialize();
     waitForConnection.get(1000, TimeUnit.MILLISECONDS);
   }

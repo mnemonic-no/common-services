@@ -3,9 +3,7 @@ package no.mnemonic.services.common.messagebus;
 
 import no.mnemonic.commons.container.ComponentContainer;
 import no.mnemonic.commons.metrics.TimerContext;
-import no.mnemonic.messaging.requestsink.jms.JMSConnection;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestProxy;
-import no.mnemonic.services.common.api.ServiceSession;
 import no.mnemonic.services.common.api.ServiceSessionFactory;
 import org.junit.After;
 import org.junit.Before;
@@ -99,9 +97,8 @@ public class ServiceMessagingParallellClientServerTest extends AbstractServiceMe
             .setMaxConcurrentRequests(serverThreads)
             .build();
 
-    JMSConnection connection = createJMSConnection();
-    JMSRequestProxy requestProxy = createJMSProxy(connection, handler, serverThreads);
-    ComponentContainer container = ComponentContainer.create(handler, connection, requestProxy);
+    JMSRequestProxy requestProxy = createJMSProxy(handler, serverThreads);
+    ComponentContainer container = ComponentContainer.create(handler, requestProxy);
 
     handlers.add(handler);
     serverContainers.add(container);

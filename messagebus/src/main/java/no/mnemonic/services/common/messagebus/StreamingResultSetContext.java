@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 public class StreamingResultSetContext implements ResultSet {
 
   private static final Logger LOGGER = Logging.getLogger(StreamingResultSetContext.class);
+  private static final String RESULTSET_STREAM_INTERRUPTED = "Resultset stream interrupted";
 
   private final Consumer<Throwable> onError;
   private final RequestHandler handler;
@@ -43,26 +44,25 @@ public class StreamingResultSetContext implements ResultSet {
     if (onError == null) throw new IllegalArgumentException("Error consumer is null");
     this.handler = handler;
     this.onError = onError;
-    ServiceStreamingResultSetResponseMessage b;
+    ServiceStreamingResultSetResponseMessage initialBatch;
 
     //wait for initial response
     try {
-      b = handler.getNextResponse();
-      if (b == null) throw new ServiceTimeOutException("Initial resultset not received");
+      initialBatch = handler.getNextResponse();
+      if (initialBatch == null) throw new ServiceTimeOutException("Initial resultset not received");
     } catch (InvocationTargetException e) {
       throw e.getTargetException();
     }
-    if (LOGGER.isDebug()) LOGGER.debug("Got initial batch");
     //do not register error here, since this thread is called from ServiceMessageClient, which will register the error
-    if (b.getIndex() != 0) throw new ResultSetStreamInterruptedException("Initial resultset message has non-initial index: " + b.getIndex());
+    if (initialBatch.getIndex() != 0) throw new ResultSetStreamInterruptedException("Initial resultset message has non-initial index: " + initialBatch.getIndex());
 
     //these values should never change in subsequent resultset batches
-    this.count = b.getCount();
-    this.limit = b.getLimit();
-    this.offset = b.getOffset();
+    this.count = initialBatch.getCount();
+    this.limit = initialBatch.getLimit();
+    this.offset = initialBatch.getOffset();
 
     //accept results from batch
-    acceptNextBatch(b);
+    acceptNextBatch(initialBatch);
   }
 
   @Override
@@ -111,7 +111,6 @@ public class StreamingResultSetContext implements ResultSet {
             }
           }
 
-          if (LOGGER.isDebug()) LOGGER.debug("Got batch idx=%d", nextBatch.getIndex());
           //check that we receive the batches in order
           if (nextBatch.getIndex() != (lastIndex.get() + 1)) {
             handler.close();
@@ -123,17 +122,17 @@ public class StreamingResultSetContext implements ResultSet {
           return true;
 
         } catch (UndeclaredThrowableException e) {
-          LOGGER.warning(e, "Resultset stream interrupted");
+          LOGGER.warning(e, RESULTSET_STREAM_INTERRUPTED);
           onError.accept(e);
           handler.close();
           throw new ResultSetStreamInterruptedException(e.getUndeclaredThrowable());
         } catch (InvocationTargetException e) {
-          LOGGER.warning(e, "Resultset stream interrupted");
+          LOGGER.warning(e, RESULTSET_STREAM_INTERRUPTED);
           onError.accept(e);
           handler.close();
           throw new ResultSetStreamInterruptedException(e.getTargetException());
         } catch (Exception e) {
-          LOGGER.warning(e, "Resultset stream interrupted");
+          LOGGER.warning(e, RESULTSET_STREAM_INTERRUPTED);
           onError.accept(e);
           handler.close();
           throw new ResultSetStreamInterruptedException(e);
@@ -149,6 +148,9 @@ public class StreamingResultSetContext implements ResultSet {
   }
 
   private void acceptNextBatch(ServiceStreamingResultSetResponseMessage nextBatch) {
+    if (LOGGER.isDebug()) {
+      LOGGER.debug("<< streamingResult [callID=%s idx=%d count=%d]", nextBatch.getCallID(), nextBatch.getIndex(), nextBatch.getCount());
+    }
     values.addAll(nextBatch.getBatch());
     lastIndex.set(nextBatch.getIndex());
     if (nextBatch.isLastMessage()) {
