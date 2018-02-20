@@ -11,14 +11,14 @@ import java.util.Iterator;
 
 abstract class AbstractServiceMessageTest {
 
-  Iterator<String> createResults(int size) {
+  static Iterator<String> createResults(int size) {
     Collection<String> values = new ArrayList<>();
     for (int i = 0; i < size; i++) values.add("val" + i);
     return values.iterator();
   }
 
-  ResultSet<String> createResultSet(Iterator<String> iterator) {
-    return new ResultSetImpl<String>(1000, 100, 10, iterator);
+  static ResultSet<String> createResultSet(Iterator<String> iterator) {
+    return new ResultSetImpl<>(1000, 100, 10, iterator);
   }
 
   public static class ResultSetImpl<T> implements ResultSet<T>, Serializable, AppendMembers {

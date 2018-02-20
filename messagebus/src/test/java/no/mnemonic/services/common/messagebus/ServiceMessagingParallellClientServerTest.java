@@ -13,8 +13,6 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -30,7 +28,7 @@ public class ServiceMessagingParallellClientServerTest extends AbstractServiceMe
   private ServiceSessionFactory sessionFactory;
 
   @Before
-  public void setup() throws InterruptedException, ExecutionException, TimeoutException {
+  public void setup() {
     MockitoAnnotations.initMocks(this);
     when(sessionFactory.openSession()).thenReturn(() -> {});
   }
@@ -80,7 +78,6 @@ public class ServiceMessagingParallellClientServerTest extends AbstractServiceMe
     for (int i = 0; i < serverInstances; i++) {
       setupServer(threadsPerServer);
     }
-
 
     LongAdder timer = new LongAdder();
     try (TimerContext ignored = TimerContext.timerMillis(timer::add)) {

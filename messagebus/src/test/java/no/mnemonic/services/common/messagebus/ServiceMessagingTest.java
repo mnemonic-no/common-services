@@ -68,16 +68,18 @@ public class ServiceMessagingTest  extends AbstractServiceMessagePerformanceTest
 
     client = ServiceMessageClient.builder(TestService.class)
             .setRequestSink(requestSink)
-            .setMaxWait(1000)
+            .setMaxWait(5000)
             .build();
 
     container = ComponentContainer.create(listener, requestProxy, requestSink);
     container.initialize();
     waitForConnection.get(1000, TimeUnit.MILLISECONDS);
+    //add some sleep to let AMQ advisory messages propagate
+    Thread.sleep(1000);
   }
 
   @After
-  public void teardown() {
+  public void teardown() throws InterruptedException {
     container.destroy();
   }
 
