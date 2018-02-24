@@ -206,6 +206,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     //if we received no response at all by the timeout limit, this is a service timeout
     if (response == null) {
       errors.increment();
+      handler.timeout();
       if (LOGGER.isDebug()) {
         LOGGER.debug("<< timeout");
       }

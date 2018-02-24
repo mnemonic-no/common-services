@@ -49,7 +49,11 @@ public class StreamingResultSetContext implements ResultSet {
     //wait for initial response
     try {
       initialBatch = handler.getNextResponse();
-      if (initialBatch == null) throw new ServiceTimeOutException("Initial resultset not received");
+      if (initialBatch == null) {
+        //notify timeout
+        handler.timeout();
+        throw new ServiceTimeOutException("Initial resultset not received");
+      }
     } catch (InvocationTargetException e) {
       throw e.getTargetException();
     }

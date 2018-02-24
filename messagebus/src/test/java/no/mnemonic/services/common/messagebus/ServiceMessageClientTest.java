@@ -5,6 +5,7 @@ import no.mnemonic.commons.testtools.MockitoTools;
 import no.mnemonic.commons.utilities.collections.ListUtils;
 import no.mnemonic.commons.utilities.lambda.LambdaUtils;
 import no.mnemonic.messaging.requestsink.RequestContext;
+import no.mnemonic.messaging.requestsink.RequestListener;
 import no.mnemonic.messaging.requestsink.RequestSink;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.ResultSetStreamInterruptedException;
@@ -35,6 +36,8 @@ public class ServiceMessageClientTest {
 
   @Mock
   private RequestSink requestSink;
+  @Mock
+  private RequestListener requestListener;
 
   @Before
   public void setup() {
@@ -137,6 +140,17 @@ public class ServiceMessageClientTest {
     proxy().getString("arg");
   }
 
+  @Test
+  public void testSingleValueTimeoutSignalsRequestSinkTimeout() {
+    mockNoResponse();
+    try {
+      proxy().getString("arg");
+      fail();
+    } catch (ServiceTimeOutException ignored) {
+      verify(requestListener).timeout();
+    }
+  }
+
   @Test(expected = IllegalArgumentException.class)
   public void testSingleValueException() {
     mockNotifyError(new IllegalArgumentException());
@@ -146,6 +160,16 @@ public class ServiceMessageClientTest {
   @Test(expected = ServiceTimeOutException.class)
   public void testResultSetTimeout() {
     proxy().getResultSet("arg");
+  }
+
+  @Test
+  public void testResultSetTimeoutSignalsRequestSinkTimeout() {
+    mockNoResponse();
+    try {
+      proxy().getResultSet("arg");
+    } catch (ServiceTimeOutException ignored) {
+      verify(requestListener).timeout();
+    }
   }
 
   @Test(expected = IllegalArgumentException.class)
@@ -346,10 +370,19 @@ public class ServiceMessageClientTest {
             .getInstance();
   }
 
+  private void mockNoResponse() {
+    when(requestSink.signal(any(), any(), anyLong())).thenAnswer(i -> {
+      RequestContext ctx = i.getArgument(1);
+      ctx.addListener(requestListener);
+      return ctx;
+    });
+  }
+
   private void mockSingleResponse() {
     when(requestSink.signal(any(), any(), anyLong())).thenAnswer(i -> {
       ServiceRequestMessage msg = i.getArgument(0);
       RequestContext ctx = i.getArgument(1);
+      ctx.addListener(requestListener);
       ctx.addResponse(ServiceResponseValueMessage.create(msg.getRequestID(), "value"));
       ctx.endOfStream();
       return ctx;
@@ -360,6 +393,7 @@ public class ServiceMessageClientTest {
     CompletableFuture<RequestContext> future = new CompletableFuture<>();
     when(requestSink.signal(any(), any(), anyLong())).thenAnswer(i -> {
       RequestContext ctx = i.getArgument(1);
+      ctx.addListener(requestListener);
       future.complete(ctx);
       return ctx;
     });
@@ -369,6 +403,7 @@ public class ServiceMessageClientTest {
   private void mockNotifyError(Throwable ex) {
     when(requestSink.signal(any(), any(), anyLong())).thenAnswer(i -> {
       RequestContext ctx = i.getArgument(1);
+      ctx.addListener(requestListener);
       ctx.notifyError(ex);
       ctx.endOfStream();
       return ctx;
