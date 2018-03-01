@@ -35,8 +35,9 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
 
   private static Clock clock = Clock.systemUTC();
   private static final Logger LOGGER = Logging.getLogger(ServiceMessageHandler.class);
-  private static final int DEFAULT_SHUTDOWN_WAIT_MS = 10000;
-  private static final int DEFAULT_KEEPALIVE_INTERVAL = 1000;
+  private static final long DEFAULT_SHUTDOWN_WAIT_MS = 10000;
+  private static final long DEFAULT_KEEPALIVE_INTERVAL = 1000;
+  private static final int DEFAULT_KEEPALIVE_MULTIPLIER = 5;
   private static final int DEFAULT_BATCH_SIZE = 100;
   private static final int DEFAULT_MAX_CONCURRENT_REQUESTS = 10;
 
@@ -47,6 +48,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   private final int maxConcurrentRequests;
   private final int batchSize;
   private final long keepAliveInterval;
+  private final int keepAliveMultiplier;
   private final long shutdownWait;
   private ExecutorService executor;
 
@@ -60,14 +62,16 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   private final LongAdder exceptions = new LongAdder();
   private final LongAdder undeclaredExceptions = new LongAdder();
 
-  private ServiceMessageHandler(Service service, ServiceSessionFactory sessionFactory, int maxConcurrentRequests, int batchSize, long keepAliveInterval, long shutdownWait) {
+  private ServiceMessageHandler(Service service, ServiceSessionFactory sessionFactory, int maxConcurrentRequests, int batchSize, long keepAliveInterval, int keepAliveMultiplier, long shutdownWait) {
     if (service == null) throw new IllegalArgumentException("service not set");
     if (sessionFactory == null) throw new IllegalArgumentException("sessionFactory not set");
     if (maxConcurrentRequests < 1)
       throw new IllegalArgumentException("maxConcurrentRequests must be a positive integer");
     if (batchSize < 1) throw new IllegalArgumentException("batchSize must be a positive integer");
+    if (keepAliveMultiplier < 1) throw new IllegalArgumentException("keepAliveMultiplier must be a positive integer");
     if (keepAliveInterval < 1) throw new IllegalArgumentException("keepAliveInterval must be a positive integer");
     if (shutdownWait < 1) throw new IllegalArgumentException("shutdownWait must be a positive integer");
+    this.keepAliveMultiplier = keepAliveMultiplier;
     this.sessionFactory = sessionFactory;
     this.service = service;
     this.maxConcurrentRequests = maxConcurrentRequests;
@@ -153,7 +157,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
 
   private void sendKeepAlive(RequestContext signalContext, String callID) {
     //send keepalive with timeout twice the keepalive interval (so channel is not closed before next keepalive arrives)
-    long until = clock.millis() + (2 * keepAliveInterval);
+    long until = clock.millis() + (keepAliveMultiplier * keepAliveInterval);
     if (LOGGER.isDebug()) {
       LOGGER.debug(">> keepalive [callID=%s until=%s]", callID, new Date(until));
     }
@@ -292,11 +296,12 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
     private int batchSize = DEFAULT_BATCH_SIZE;
     private int maxConcurrentRequests = DEFAULT_MAX_CONCURRENT_REQUESTS;
     private long keepAliveInterval = DEFAULT_KEEPALIVE_INTERVAL;
+    private int keepAliveMultiplier = DEFAULT_KEEPALIVE_MULTIPLIER;
     private long shutdownWait = DEFAULT_SHUTDOWN_WAIT_MS;
 
     public ServiceMessageHandler build() {
       if (service == null) throw new IllegalArgumentException("service not set");
-      return new ServiceMessageHandler(service, sessionFactory, maxConcurrentRequests, batchSize, keepAliveInterval, shutdownWait);
+      return new ServiceMessageHandler(service, sessionFactory, maxConcurrentRequests, batchSize, keepAliveInterval, keepAliveMultiplier, shutdownWait);
     }
 
     public Builder setShutdownWait(long shutdownWait) {
@@ -326,6 +331,11 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
 
     public Builder setKeepAliveInterval(@SuppressWarnings("SameParameterValue") long keepAliveInterval) {
       this.keepAliveInterval = keepAliveInterval;
+      return this;
+    }
+
+    public Builder setKeepAliveMultiplier(int keepAliveMultiplier) {
+      this.keepAliveMultiplier = keepAliveMultiplier;
       return this;
     }
   }
