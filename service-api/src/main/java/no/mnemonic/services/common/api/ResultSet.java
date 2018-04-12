@@ -1,6 +1,10 @@
 package no.mnemonic.services.common.api;
 
 import java.util.Iterator;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public interface ResultSet<T> extends Iterable<T> {
 
@@ -22,4 +26,19 @@ public interface ResultSet<T> extends Iterable<T> {
    */
   @Override
   Iterator<T> iterator() throws ResultSetStreamInterruptedException;
+
+  @Override
+  default Spliterator<T> spliterator() {
+    return Spliterators.spliteratorUnknownSize(
+            iterator(),
+            Spliterator.ORDERED
+    );
+  }
+
+  /**
+   * @return a stream based on this iterable
+   */
+  default Stream<T> stream() {
+    return StreamSupport.stream(spliterator(), false);
+  }
 }
