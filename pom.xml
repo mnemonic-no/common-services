@@ -38,15 +38,15 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
     <!-- mnemonic dependencies -->
-    <mnemonic.commons.version>0.2.9</mnemonic.commons.version>
-    <mnemonic.messaging.version>1.1.9</mnemonic.messaging.version>
+    <mnemonic.commons.version>0.2.12</mnemonic.commons.version>
+    <mnemonic.messaging.version>1.1.11</mnemonic.messaging.version>
 
     <!-- external dependencies -->
-    <activemq.version>5.15.2</activemq.version>
+    <activemq.version>5.15.3</activemq.version>
     <cglib.version>3.2.6</cglib.version>
     <junit.version>4.12</junit.version>
-    <mockito.version>2.13.0</mockito.version>
-    <swagger.version>1.5.18</swagger.version>
+    <mockito.version>2.18.3</mockito.version>
+    <swagger.version>1.5.19</swagger.version>
 
     <!-- build dependencies -->
     <maven.clean.version>3.0.0</maven.clean.version>
