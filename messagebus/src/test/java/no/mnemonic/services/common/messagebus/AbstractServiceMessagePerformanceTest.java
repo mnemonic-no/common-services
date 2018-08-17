@@ -9,6 +9,7 @@ import no.mnemonic.messaging.requestsink.jms.JMSBase;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestProxy;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestSink;
 import no.mnemonic.messaging.requestsink.jms.ProtocolVersion;
+import no.mnemonic.messaging.requestsink.jms.serializer.DefaultJavaMessageSerializer;
 import org.apache.activemq.broker.BrokerService;
 import org.apache.activemq.broker.TransportConnector;
 import org.apache.activemq.broker.region.policy.PolicyEntry;
@@ -81,6 +82,7 @@ public abstract class AbstractServiceMessagePerformanceTest extends AbstractServ
 
   JMSRequestProxy createJMSProxy(ServiceMessageHandler listener, int concurrency) {
     return addJMSConnection(JMSRequestProxy.builder())
+            .addSerializer(new DefaultJavaMessageSerializer())
             .setPriority(9)
             .setDestinationName("dynamicQueues/" + serviceQueue)
             .setMaxConcurrentCalls(concurrency)

@@ -57,7 +57,7 @@ public class ServiceMessagingParallellClientServerTest extends AbstractServiceMe
     int threadsPerServer = 5;
     int invocationsPerClient = 10;
     int clientThreads = 20;
-    int delayPerRequest = 100;
+    int delayPerRequest = 500; // Increased delay in an attempt to make test more stable.
     int clientMaxWait = 5000;
 
     doRunTest(serverInstances, threadsPerServer, invocationsPerClient, clientThreads, delayPerRequest, clientMaxWait);
