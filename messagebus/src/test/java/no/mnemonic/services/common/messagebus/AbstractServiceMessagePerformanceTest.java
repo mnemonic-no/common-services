@@ -5,7 +5,7 @@ import no.mnemonic.commons.metrics.TimerContext;
 import no.mnemonic.commons.testtools.AvailablePortFinder;
 import no.mnemonic.commons.utilities.collections.ListUtils;
 import no.mnemonic.commons.utilities.lambda.LambdaUtils;
-import no.mnemonic.messaging.requestsink.jms.JMSBase;
+import no.mnemonic.messaging.requestsink.jms.AbstractJMSRequestBase;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestProxy;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestSink;
 import no.mnemonic.messaging.requestsink.jms.ProtocolVersion;
@@ -63,7 +63,7 @@ public abstract class AbstractServiceMessagePerformanceTest extends AbstractServ
     serviceQueue = "TestService" + (int) (Math.random() * 100000);
   }
 
-  <T extends JMSBase.BaseBuilder<T>> T addJMSConnection(T builder) {
+  <T extends AbstractJMSRequestBase.BaseBuilder<T>> T addJMSConnection(T builder) {
     return builder
             .setContextFactoryName(INITIAL_CONTEXT_FACTORY_NAME)
             .setContextURL(getConnectionUrl())
