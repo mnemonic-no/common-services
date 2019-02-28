@@ -38,30 +38,30 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
     <!-- mnemonic dependencies -->
-    <mnemonic.commons.version>0.2.15</mnemonic.commons.version>
-    <mnemonic.messaging.version>1.2.3</mnemonic.messaging.version>
+    <mnemonic.commons.version>0.2.18</mnemonic.commons.version>
+    <mnemonic.messaging.version>1.2.6</mnemonic.messaging.version>
 
     <!-- external dependencies -->
-    <activemq.version>5.15.6</activemq.version>
-    <cglib.version>3.2.7</cglib.version>
+    <activemq.version>5.15.8</activemq.version>
+    <cglib.version>3.2.10</cglib.version>
     <junit.version>4.12</junit.version>
-    <mockito.version>2.22.0</mockito.version>
-    <swagger.version>1.5.21</swagger.version>
+    <mockito.version>2.24.5</mockito.version>
+    <swagger.version>1.5.22</swagger.version>
 
     <!-- build dependencies -->
-    <maven.clean.version>3.0.0</maven.clean.version>
-    <maven.compile.version>3.6.1</maven.compile.version>
+    <maven.clean.version>3.1.0</maven.clean.version>
+    <maven.compile.version>3.8.0</maven.compile.version>
     <maven.deploy.version>2.8.2</maven.deploy.version>
     <maven.gpg.version>1.6</maven.gpg.version>
     <maven.install.version>2.5.2</maven.install.version>
-    <maven.jar.version>3.0.2</maven.jar.version>
-    <maven.javadoc.version>2.10.4</maven.javadoc.version>
-    <maven.license.version>1.12</maven.license.version>
-    <maven.release.version>2.5.3</maven.release.version>
+    <maven.jar.version>3.1.1</maven.jar.version>
+    <maven.javadoc.version>3.0.1</maven.javadoc.version>
+    <maven.license.version>1.18</maven.license.version>
     <maven.nexus.staging.version>1.6.8</maven.nexus.staging.version>
-    <maven.resources.version>3.0.2</maven.resources.version>
+    <maven.release.version>2.5.3</maven.release.version>
+    <maven.resources.version>3.1.0</maven.resources.version>
     <maven.source.version>3.0.1</maven.source.version>
-    <maven.surefire.version>2.20</maven.surefire.version>
+    <maven.surefire.version>2.22.1</maven.surefire.version>
   </properties>
 
   <modules>
