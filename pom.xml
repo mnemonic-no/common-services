@@ -37,6 +37,9 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
+    <!-- JDK compile target -->
+    <jdk.version>1.8</jdk.version>
+
     <!-- mnemonic dependencies -->
     <mnemonic.commons.version>0.2.19</mnemonic.commons.version>
     <mnemonic.messaging.version>1.2.11</mnemonic.messaging.version>
@@ -44,6 +47,7 @@
     <!-- external dependencies -->
     <activemq.version>5.15.9</activemq.version>
     <cglib.version>3.2.12</cglib.version>
+    <jaxb.version>2.3.2</jaxb.version>
     <junit.version>4.12</junit.version>
     <mockito.version>2.27.0</mockito.version>
     <swagger.version>1.5.22</swagger.version>
@@ -118,9 +122,8 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>${maven.compiler.version}</version>
         <configuration>
-          <source>1.8</source>
-          <target>1.8</target>
-          <encoding>UTF-8</encoding>
+          <source>${jdk.version}</source>
+          <target>${jdk.version}</target>
         </configuration>
       </plugin>
       <plugin>
@@ -175,6 +178,9 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
         <version>${maven.javadoc.version}</version>
+        <configuration>
+          <source>${jdk.version}</source>
+        </configuration>
         <executions>
           <execution>
             <id>attach-javadocs</id>
@@ -222,7 +228,7 @@
           <licenseMerges>
             <licenseMerge>Apache 2|ASF 2.0|Apache License 2.0|Apache Software License - Version 2.0|Apache License, Version 2.0|The Apache Software License, Version 2.0</licenseMerge>
             <licenseMerge>CDDL|CDDL 1.1|CDDL + GPLv2 with classpath exception</licenseMerge>
-            <licenseMerge>Eclipse|Eclipse Public License 1.0|Eclipse Public License - Version 1.0</licenseMerge>
+            <licenseMerge>Eclipse|Eclipse Public License 1.0|Eclipse Public License - Version 1.0|Eclipse Distribution License - v 1.0</licenseMerge>
             <licenseMerge>MIT|The MIT License</licenseMerge>
           </licenseMerges>
         </configuration>

@@ -23,6 +23,13 @@
       <artifactId>swagger-core</artifactId>
       <version>${swagger.version}</version>
     </dependency>
+    <!-- Swagger depends on JAXB but that has been moved out of Java with JDK11. -->
+    <dependency>
+      <groupId>jakarta.xml.bind</groupId>
+      <artifactId>jakarta.xml.bind-api</artifactId>
+      <version>${jaxb.version}</version>
+      <scope>runtime</scope>
+    </dependency>
     <!-- test dependencies -->
     <dependency>
       <groupId>junit</groupId>
