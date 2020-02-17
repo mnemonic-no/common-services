@@ -23,12 +23,6 @@
       <artifactId>swagger-core</artifactId>
       <version>${swagger.version}</version>
     </dependency>
-    <!-- Force a newer version of Jackson because Swagger depends on a vulnerable version. -->
-    <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
-      <artifactId>jackson-databind</artifactId>
-      <version>${jackson.version}</version>
-    </dependency>
     <!-- Swagger depends on JAXB but that has been moved out of Java with JDK11. -->
     <dependency>
       <groupId>jakarta.xml.bind</groupId>
