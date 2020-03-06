@@ -4,15 +4,16 @@ import no.mnemonic.services.common.auth.model.*;
 
 import java.util.Set;
 
-public interface AccessController<C extends Credentials, S extends SubjectIdentity, O extends OrganizationIdentity, F extends FunctionIdentity> {
+public interface AccessController<C extends Credentials, D extends SessionDescriptor, S extends SubjectIdentity, O extends OrganizationIdentity, F extends FunctionIdentity> {
 
   /**
    * Validates that the credentials are valid
    *
    * @param credentials credentials to check
+   * @return representation of a validated session
    * @throws InvalidCredentialsException if credentials cannot be authenticated
    */
-  void validate(C credentials) throws InvalidCredentialsException;
+  D validate(C credentials) throws InvalidCredentialsException;
 
   /**
    * Check if given credentials give access to specified function, for any organization
