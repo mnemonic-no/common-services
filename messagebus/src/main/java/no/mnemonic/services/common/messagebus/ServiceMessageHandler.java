@@ -61,6 +61,8 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   private final LongAdder handlingTime = new LongAdder();
   private final LongAdder exceptions = new LongAdder();
   private final LongAdder undeclaredExceptions = new LongAdder();
+  private final LongAdder runningRequests = new LongAdder();
+  private final LongAdder pendingRequests = new LongAdder();
 
   private ServiceMessageHandler(Service service, ServiceSessionFactory sessionFactory, int maxConcurrentRequests, int batchSize, long keepAliveInterval, int keepAliveMultiplier, long shutdownWait) {
     if (service == null) throw new IllegalArgumentException("service not set");
@@ -114,7 +116,9 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
             .addData("executionTime", executionTime)
             .addData("handlingTime", handlingTime)
             .addData("exceptions", exceptions)
-            .addData("undeclaredExceptions", undeclaredExceptions);
+            .addData("undeclaredExceptions", undeclaredExceptions)
+            .addData("runningRequests", runningRequests)
+            .addData("pendingRequests", pendingRequests);
   }
 
   @Override
@@ -132,6 +136,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
     }
 
     receivedRequests.increment();
+    pendingRequests.increment();
 
     try (TimerContext ignored = TimerContext.timerMillis(handlingTime::add)) {
       ServiceRequestMessage request = (ServiceRequestMessage) msg;
@@ -165,6 +170,9 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   }
 
   private void handleRequest(ServiceRequestMessage request, RequestContext signalContext) {
+    pendingRequests.decrement();
+    runningRequests.increment();
+
     try (ServiceSession ignored = sessionFactory.openSession()) {
 
       //determine method to invoke
@@ -195,6 +203,7 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
     } catch (Exception e) {
       handleException(signalContext, e);
     } finally {
+      runningRequests.decrement();
       //finally, on either normal result or exception, signal end-of-stream
       if (LOGGER.isDebug()) {
         LOGGER.debug(">> endOfStream [callID=%s]", request.getRequestID());

@@ -41,16 +41,16 @@
     <jdk.version>1.8</jdk.version>
 
     <!-- mnemonic dependencies -->
-    <mnemonic.commons.version>0.3.4</mnemonic.commons.version>
-    <mnemonic.messaging.version>1.2.23</mnemonic.messaging.version>
+    <mnemonic.commons.version>0.4.0</mnemonic.commons.version>
+    <mnemonic.messaging.version>1.2.26</mnemonic.messaging.version>
 
     <!-- external dependencies -->
-    <activemq.version>5.15.11</activemq.version>
+    <activemq.version>5.15.12</activemq.version>
     <cglib.version>3.3.0</cglib.version>
-    <jaxb.version>2.3.2</jaxb.version>
+    <jaxb.version>2.3.3</jaxb.version>
     <junit.version>4.13</junit.version>
-    <mockito.version>3.3.0</mockito.version>
-    <swagger.version>1.6.0</swagger.version>
+    <mockito.version>3.3.3</mockito.version>
+    <swagger.version>1.6.1</swagger.version>
 
     <!-- build dependencies -->
     <maven.clean.version>3.1.0</maven.clean.version>
