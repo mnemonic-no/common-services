@@ -106,6 +106,7 @@ public class HazelcastTransactionalConsumerHandler<T> implements LifecycleAspect
   public Metrics getMetrics() throws MetricException {
     MetricsData metrics = new MetricsData();
     metrics.addData("alive", running.get() && runningWorkers.get() > 0 ? 1 : 0);
+    metrics.addData("workers.all.alive", running.get() && runningWorkers.get() == workerCount ? 1 : 0);
     metrics.addData("workers.running.count", runningWorkers.get());
 
     metrics.addData("queue.poll.count", queuePoll.getTotalInvocations());
