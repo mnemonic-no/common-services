@@ -1,8 +1,8 @@
 package no.mnemonic.services.common.hazelcast.consumer;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.core.TransactionalQueue;
 import com.hazelcast.transaction.TransactionContext;
-import com.hazelcast.transaction.TransactionalQueue;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;

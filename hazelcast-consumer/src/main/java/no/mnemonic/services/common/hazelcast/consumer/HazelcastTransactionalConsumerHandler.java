@@ -1,9 +1,9 @@
 package no.mnemonic.services.common.hazelcast.consumer;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.core.TransactionalQueue;
 import com.hazelcast.transaction.TransactionContext;
 import com.hazelcast.transaction.TransactionOptions;
-import com.hazelcast.transaction.TransactionalQueue;
 import no.mnemonic.commons.component.Dependency;
 import no.mnemonic.commons.component.LifecycleAspect;
 import no.mnemonic.commons.logging.Logger;

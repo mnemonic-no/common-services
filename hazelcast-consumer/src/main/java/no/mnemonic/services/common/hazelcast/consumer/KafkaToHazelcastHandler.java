@@ -1,7 +1,7 @@
 package no.mnemonic.services.common.hazelcast.consumer;
 
-import com.hazelcast.collection.IQueue;
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.core.IQueue;
 import no.mnemonic.commons.component.Dependency;
 import no.mnemonic.commons.component.LifecycleAspect;
 import no.mnemonic.commons.logging.Logger;
