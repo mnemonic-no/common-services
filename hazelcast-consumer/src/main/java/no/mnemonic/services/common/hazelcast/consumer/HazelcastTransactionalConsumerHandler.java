@@ -10,6 +10,7 @@ import no.mnemonic.commons.logging.Logger;
 import no.mnemonic.commons.logging.Logging;
 import no.mnemonic.commons.metrics.*;
 import no.mnemonic.commons.utilities.collections.CollectionUtils;
+import no.mnemonic.services.common.hazelcast.consumer.exception.ConsumerGaveUpException;
 
 import javax.inject.Provider;
 import java.io.IOException;
@@ -31,6 +32,7 @@ public class HazelcastTransactionalConsumerHandler<T> implements LifecycleAspect
   private static final int DEFAULT_BULK_SIZE = 100;
   private static final long DEFAULT_HAZELCAST_QUEUE_POLL_TIMEOUT_SEC = 1;
   private static final long DEFAULT_HZ_TRANSACTION_TIMEOUT_SEC = TimeUnit.MINUTES.toSeconds(2L);  // same default as from HZ TransactionOptions
+  private static final boolean DEFAULT_HAZELCAST_KEEP_THREAD_ALIVE_ON_EXCEPTION = false;
 
   @Dependency
   private final HazelcastInstance hazelcastInstance;
@@ -42,6 +44,7 @@ public class HazelcastTransactionalConsumerHandler<T> implements LifecycleAspect
   private int bulkSize = DEFAULT_BULK_SIZE;
   private long hazelcastQueuePollTimeoutSec = DEFAULT_HAZELCAST_QUEUE_POLL_TIMEOUT_SEC;
   private long hazelcastTransactionTimeoutSec = DEFAULT_HZ_TRANSACTION_TIMEOUT_SEC;
+  private boolean keepThreadAliveOnException = DEFAULT_HAZELCAST_KEEP_THREAD_ALIVE_ON_EXCEPTION;
 
   private final AtomicInteger runningWorkers = new AtomicInteger();
   private final LongAdder queuePollTimeoutCount = new LongAdder();
@@ -154,7 +157,7 @@ public class HazelcastTransactionalConsumerHandler<T> implements LifecycleAspect
     });
   }
 
-  private void consumeNextBatch(TransactionalConsumer<T> consumer) throws InterruptedException, IOException {
+  private void consumeNextBatch(TransactionalConsumer<T> consumer) throws InterruptedException, IOException, ConsumerGaveUpException {
     TransactionContext transactionContext = hazelcastInstance.newTransactionContext(
             new TransactionOptions()
                     .setTransactionType(TransactionOptions.TransactionType.TWO_PHASE)
@@ -185,9 +188,14 @@ public class HazelcastTransactionalConsumerHandler<T> implements LifecycleAspect
 
       transactionContext.commitTransaction();
       itemSubmitCount.add(items.size());
+    } catch (ConsumerGaveUpException e) {
+      transactionContext.rollbackTransaction(); // make sure rollback to let other threads handle the data
+      throw e;
     } catch (Exception e) {
       transactionContext.rollbackTransaction(); // make sure rollback to let other threads handle the data
-      throw e;  // exception happens which leads thread to stop
+      if (!keepThreadAliveOnException) {
+        throw e;  // exception happens which leads thread to stop
+      }
     }
   }
 
@@ -224,6 +232,11 @@ public class HazelcastTransactionalConsumerHandler<T> implements LifecycleAspect
 
   public HazelcastTransactionalConsumerHandler<T> setHazelcastTransactionTimeoutSec(long hazelcastTransactionTimeoutSec) {
     this.hazelcastTransactionTimeoutSec = hazelcastTransactionTimeoutSec;
+    return this;
+  }
+
+  public HazelcastTransactionalConsumerHandler<T> setKeepThreadAliveOnException(boolean keepThreadAliveOnException) {
+    this.keepThreadAliveOnException = keepThreadAliveOnException;
     return this;
   }
 

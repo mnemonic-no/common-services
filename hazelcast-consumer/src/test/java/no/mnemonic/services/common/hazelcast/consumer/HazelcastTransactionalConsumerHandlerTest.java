@@ -3,6 +3,7 @@ package no.mnemonic.services.common.hazelcast.consumer;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.TransactionalQueue;
 import com.hazelcast.transaction.TransactionContext;
+import no.mnemonic.services.common.hazelcast.consumer.exception.ConsumerGaveUpException;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -15,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -140,4 +141,48 @@ public class HazelcastTransactionalConsumerHandlerTest {
 
     verify(transactionContext).rollbackTransaction();
   }
+
+  @Test
+  public void txRollbackButDontThrowExceptionIfOptionIsSet() throws Exception {
+    AtomicBoolean consumerCalled = new AtomicBoolean(false);
+    when(txHazelcastQueue.poll(anyLong(), any())).thenReturn("testvalue");
+    doThrow(new IOException())
+            .doAnswer(inv -> {
+              consumerCalled.set(true);
+              return null;
+            })
+            .when(transactionalConsumer).consume(any());
+
+    handler.setKeepThreadAliveOnException(true);
+
+    handler.startComponent();
+    assertNotNull(workerTask.get());
+    workerTask.get().run();
+    verify(workerLifecycleListener, timeout(10000)).workerStopped(any());
+    verify(transactionContext).rollbackTransaction();
+    assertTrue(consumerCalled.get());
+  }
+
+  @Test
+  public void testRollbackTransactionAndGiveUpIfOptionIsSetAndConsumerGaveUp() throws IOException, InterruptedException, ConsumerGaveUpException {
+    AtomicBoolean consumerCalled = new AtomicBoolean(false);
+    when(txHazelcastQueue.poll(anyLong(), any())).thenReturn("testvalue");
+    doThrow(new IOException())
+            .doThrow(new ConsumerGaveUpException("error"))
+            .doAnswer(inv -> {
+              consumerCalled.set(true);
+              return null;
+            })
+            .when(transactionalConsumer).consume(any());
+
+    handler.setKeepThreadAliveOnException(true);
+
+    handler.startComponent();
+    assertNotNull(workerTask.get());
+    workerTask.get().run();
+    verify(workerLifecycleListener, timeout(10000)).workerStopped(any());
+    verify(transactionContext, times(2)).rollbackTransaction();
+    assertFalse(consumerCalled.get());
+  }
+
 }
