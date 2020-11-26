@@ -196,6 +196,7 @@ public class HazelcastTransactionalConsumerHandler<T> implements LifecycleAspect
       if (!keepThreadAliveOnException) {
         throw e;  // exception happens which leads thread to stop
       }
+      LOG.error(e, "An exception was thrown when consuming batch");
     }
   }
 
