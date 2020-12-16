@@ -41,17 +41,17 @@
     <jdk.version>1.8</jdk.version>
 
     <!-- mnemonic dependencies -->
-    <mnemonic.commons.version>0.4.0</mnemonic.commons.version>
-    <mnemonic.messaging.version>1.2.27</mnemonic.messaging.version>
+    <mnemonic.commons.version>0.4.2</mnemonic.commons.version>
+    <mnemonic.messaging.version>1.2.28</mnemonic.messaging.version>
 
     <!-- external dependencies -->
     <activemq.version>5.16.0</activemq.version>
     <cglib.version>3.3.0</cglib.version>
-    <hazelcast.version>3.12.9</hazelcast.version>
+    <hazelcast.version>3.12.11</hazelcast.version>
     <javax.inject.version>1</javax.inject.version>
     <jaxb.version>2.3.3</jaxb.version>
-    <junit.version>4.13</junit.version>
-    <mockito.version>3.4.6</mockito.version>
+    <junit.version>4.13.1</junit.version>
+    <mockito.version>3.6.28</mockito.version>
     <swagger.version>1.6.2</swagger.version>
 
     <!-- build dependencies -->
