@@ -52,6 +52,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
   private final LongAdder requests = new LongAdder();
   private final LongAdder errors = new LongAdder();
   private final LongAdder totalRequestTime = new LongAdder();
+  private final LongAdder serviceTimeOuts = new LongAdder();
 
   //constructor
 
@@ -77,6 +78,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     return new MetricsData()
             .addData("requests", requests)
             .addData("errors", errors)
+            .addData("serviceTimeOuts", serviceTimeOuts)
             .addData("totalRequestTime", totalRequestTime);
   }
 
@@ -187,7 +189,12 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     if (ResultSet.class.isAssignableFrom(declaredReturnType)) {
       //if method returns a ResultSet, the handler will send a streaming response
       //noinspection unchecked
-      return handleStreamingResponse(handler, (Class<ResultSet>) declaredReturnType);
+      try {
+        return handleStreamingResponse(handler, (Class<ResultSet>) declaredReturnType);
+      } catch (ServiceTimeOutException ex) {
+        serviceTimeOuts.increment();
+        throw ex;
+      }
     } else {
       //else the handler will return a single response
       return handleValueResponse(handler);
@@ -210,6 +217,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
       if (LOGGER.isDebug()) {
         LOGGER.debug("<< timeout");
       }
+      serviceTimeOuts.increment();
       throw new ServiceTimeOutException();
     }
     if (LOGGER.isDebug()) {
