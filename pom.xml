@@ -51,6 +51,7 @@
     <javax.inject.version>1</javax.inject.version>
     <jaxb.version>2.3.3</jaxb.version>
     <junit.version>4.13.1</junit.version>
+    <junit.jupiter.version>5.7.0</junit.jupiter.version>
     <mockito.version>3.6.28</mockito.version>
     <swagger.version>1.6.2</swagger.version>
 
@@ -231,7 +232,7 @@
           <licenseMerges>
             <licenseMerge>Apache 2|ASF 2.0|Apache License 2.0|Apache Software License - Version 2.0|Apache License, Version 2.0|The Apache Software License, Version 2.0</licenseMerge>
             <licenseMerge>CDDL|CDDL 1.1|CDDL + GPLv2 with classpath exception</licenseMerge>
-            <licenseMerge>Eclipse|Eclipse Public License 1.0|Eclipse Public License - Version 1.0|Eclipse Distribution License - v 1.0</licenseMerge>
+            <licenseMerge>Eclipse|Eclipse Public License 1.0|Eclipse Public License - Version 1.0|Eclipse Distribution License - v 1.0|Eclipse Public License v2.0</licenseMerge>
             <licenseMerge>MIT|The MIT License</licenseMerge>
           </licenseMerges>
         </configuration>

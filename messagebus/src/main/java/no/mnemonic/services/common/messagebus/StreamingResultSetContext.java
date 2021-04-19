@@ -9,7 +9,10 @@ import no.mnemonic.services.common.api.ServiceTimeOutException;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.UndeclaredThrowableException;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -20,19 +23,20 @@ import java.util.function.Consumer;
 /**
  * A {@link ResultSet} implementation which reads a stream of result batches
  */
-public class StreamingResultSetContext implements ResultSet {
+public class StreamingResultSetContext<T> implements ResultSet<T> {
 
   private static final Logger LOGGER = Logging.getLogger(StreamingResultSetContext.class);
   private static final String RESULTSET_STREAM_INTERRUPTED = "Resultset stream interrupted";
 
   private final Consumer<Throwable> onError;
   private final RequestHandler handler;
-  private final BlockingQueue<Object> values = new LinkedBlockingDeque<>();
+  private final BlockingQueue<T> values = new LinkedBlockingDeque<>();
   private final int count;
   private final int limit;
   private final int offset;
   private final AtomicInteger lastIndex = new AtomicInteger();
   private final AtomicBoolean lastMessageReceived = new AtomicBoolean();
+  private final Map<Integer, ServiceStreamingResultSetResponseMessage> waitingBatches = new HashMap<>();
 
   /**
    *
@@ -65,7 +69,7 @@ public class StreamingResultSetContext implements ResultSet {
     this.limit = initialBatch.getLimit();
     this.offset = initialBatch.getOffset();
 
-    //accept results from batch
+    //accept results from initial batch
     acceptNextBatch(initialBatch);
   }
 
@@ -85,8 +89,8 @@ public class StreamingResultSetContext implements ResultSet {
   }
 
   @Override
-  public Iterator iterator() {
-    return new Iterator() {
+  public Iterator<T> iterator() {
+    return new Iterator<T>() {
 
       @Override
       public boolean hasNext() {
@@ -95,36 +99,7 @@ public class StreamingResultSetContext implements ResultSet {
           if (!values.isEmpty()) return true;
           //stream is already normally closed
           if (handler.isClosed() && lastMessageReceived.get()) return false;
-
-          //check handler for more data
-          ServiceStreamingResultSetResponseMessage nextBatch = handler.getNextResponse();
-          //timeout/EOS occurred
-          if (nextBatch == null) {
-            if (!handler.isClosed()) {
-              throw new ResultSetStreamInterruptedException("Stream unexpectedly closed");
-            }
-            if (!lastMessageReceived.get()) {
-              throw new ResultSetStreamInterruptedException(String.format("Inconsistent batch messages: lastMessage never received (last index=%d)", lastIndex.get()));
-            }
-            //handler is closed and we have received last message, so close stream normally
-            return false;
-          } else {
-            //if there are more messages from handler, we really should not have received lastMessage already
-            if (lastMessageReceived.get()) {
-              throw new ResultSetStreamInterruptedException(String.format("Inconsistent batch messages: lastMessage already received (idx=%d)", nextBatch.getIndex()));
-            }
-          }
-
-          //check that we receive the batches in order
-          if (nextBatch.getIndex() != (lastIndex.get() + 1)) {
-            handler.close();
-            throw new ResultSetStreamInterruptedException(String.format("Resultset batch message has wrong index: %d (expected %d)", nextBatch.getIndex(), lastIndex.get()));
-          }
-
-          //accept batch result
-          acceptNextBatch(nextBatch);
-          return true;
-
+          return !checkForNextBatch();
         } catch (UndeclaredThrowableException e) {
           LOGGER.warning(e, RESULTSET_STREAM_INTERRUPTED);
           onError.accept(e);
@@ -144,18 +119,59 @@ public class StreamingResultSetContext implements ResultSet {
       }
 
       @Override
-      public Object next() {
+      public T next() {
         if (!hasNext()) throw new NoSuchElementException("At end of stream");
         return values.poll();
       }
     };
   }
 
+  private boolean checkForNextBatch() throws InvocationTargetException {
+    //check handler for more data
+    ServiceStreamingResultSetResponseMessage nextBatch = fetchNextBatch();
+
+    //timeout/EOS occurred
+    if (nextBatch == null) {
+      if (!waitingBatches.isEmpty()) {
+        LOGGER.warning("Still %d batches in waitingBatches when closing stream", waitingBatches.size());
+        waitingBatches.clear();
+      }
+      if (!handler.isClosed()) {
+        throw new ResultSetStreamInterruptedException("Stream unexpectedly closed");
+      }
+      if (!lastMessageReceived.get()) {
+        throw new ResultSetStreamInterruptedException(String.format("Inconsistent batch messages: lastMessage never received (last index=%d)", lastIndex.get()));
+      }
+      //handler is closed and we have received last message, so close stream normally
+      return true;
+    }
+
+    //accept batch result
+    acceptNextBatch(nextBatch);
+    return false;
+  }
+
+  private ServiceStreamingResultSetResponseMessage fetchNextBatch() throws InvocationTargetException {
+    int expectedIndex = lastIndex.get() + 1;
+    //if the batch we want next is previously received (out-of-order), return it
+    if (waitingBatches.containsKey(expectedIndex)) return waitingBatches.remove(expectedIndex);
+    //try fetching next from stream
+    ServiceStreamingResultSetResponseMessage nextResponse = handler.getNextResponse();
+    if (nextResponse == null) return null;
+    //if we receive a batch out-of-order, put it into waitingBatches and try again
+    if (nextResponse.getIndex() != expectedIndex) {
+      waitingBatches.put(nextResponse.getIndex(), nextResponse);
+      return fetchNextBatch();
+    }
+    return nextResponse;
+  }
+
   private void acceptNextBatch(ServiceStreamingResultSetResponseMessage nextBatch) {
     if (LOGGER.isDebug()) {
       LOGGER.debug("<< streamingResult [callID=%s idx=%d count=%d]", nextBatch.getCallID(), nextBatch.getIndex(), nextBatch.getCount());
     }
-    values.addAll(nextBatch.getBatch());
+    //noinspection unchecked
+    values.addAll((Collection<? extends T>) nextBatch.getBatch());
     lastIndex.set(nextBatch.getIndex());
     if (nextBatch.isLastMessage()) {
       lastMessageReceived.set(true);

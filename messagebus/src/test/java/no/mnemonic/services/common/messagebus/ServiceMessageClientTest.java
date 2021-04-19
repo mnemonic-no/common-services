@@ -10,47 +10,51 @@ import no.mnemonic.messaging.requestsink.RequestSink;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.ResultSetStreamInterruptedException;
 import no.mnemonic.services.common.api.ServiceTimeOutException;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import static no.mnemonic.commons.testtools.MockitoTools.match;
 import static no.mnemonic.commons.utilities.collections.ListUtils.list;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-public class ServiceMessageClientTest {
+@ExtendWith(MockitoExtension.class)
+class ServiceMessageClientTest {
 
-  private static ExecutorService executor = Executors.newFixedThreadPool(10);
+  private static final ExecutorService executor = Executors.newFixedThreadPool(10);
 
   @Mock
   private RequestSink requestSink;
   @Mock
   private RequestListener requestListener;
 
-  @Before
-  public void setup() {
-    MockitoAnnotations.initMocks(this);
-  }
-
-  @AfterClass
+  @AfterAll
   public static void afterAll() {
     executor.shutdown();
   }
 
   @Test
-  public void testRequest() {
+  void testRequest() {
     mockSingleResponse();
     assertEquals("value", proxy().getString("arg"));
     verify(requestSink).signal(match(r ->
@@ -62,46 +66,46 @@ public class ServiceMessageClientTest {
   }
 
   @Test
-  public void testPrimitiveTypes() {
-    doTestPrimitiveType(()-> proxy().primitiveBooleanArgument(true), Boolean.TYPE.getName(), true);
-    doTestPrimitiveType(()-> proxy().primitiveLongArgument(1), Long.TYPE.getName(), 1L);
-    doTestPrimitiveType(()-> proxy().primitiveIntArgument(1), Integer.TYPE.getName(), 1);
-    doTestPrimitiveType(()-> proxy().primitiveCharArgument('a'), Character.TYPE.getName(), 'a');
-    doTestPrimitiveType(()-> proxy().primitiveFloatArgument((float)1.0), Float.TYPE.getName(), (float)1.0);
-    doTestPrimitiveType(()-> proxy().primitiveDoubleArgument(1.0), Double.TYPE.getName(), 1.0);
-    doTestPrimitiveType(()-> proxy().primitiveByteArgument((byte)1), Byte.TYPE.getName(), (byte)1);
+  void testPrimitiveTypes() {
+    doTestPrimitiveType(() -> proxy().primitiveBooleanArgument(true), Boolean.TYPE.getName(), true);
+    doTestPrimitiveType(() -> proxy().primitiveLongArgument(1), Long.TYPE.getName(), 1L);
+    doTestPrimitiveType(() -> proxy().primitiveIntArgument(1), Integer.TYPE.getName(), 1);
+    doTestPrimitiveType(() -> proxy().primitiveCharArgument('a'), Character.TYPE.getName(), 'a');
+    doTestPrimitiveType(() -> proxy().primitiveFloatArgument((float) 1.0), Float.TYPE.getName(), (float) 1.0);
+    doTestPrimitiveType(() -> proxy().primitiveDoubleArgument(1.0), Double.TYPE.getName(), 1.0);
+    doTestPrimitiveType(() -> proxy().primitiveByteArgument((byte) 1), Byte.TYPE.getName(), (byte) 1);
   }
 
   @Test
-  public void testPrimitiveArray() {
+  void testPrimitiveArray() {
     mockSingleResponse();
-    assertEquals("value", proxy().primitiveArrayArgument(new long[]{1L,2L,3L}));
+    assertEquals("value", proxy().primitiveArrayArgument(new long[]{1L, 2L, 3L}));
     verify(requestSink).signal(MockitoTools.match(
-            r->Objects.equals(r.getArgumentTypes()[0], "[J") && Arrays.equals((long[])r.getArguments()[0], new long[]{1L,2L,3L}),
+            r -> Objects.equals(r.getArgumentTypes()[0], "[J") && Arrays.equals((long[]) r.getArguments()[0], new long[]{1L, 2L, 3L}),
             ServiceRequestMessage.class),
             any(), anyLong()
     );
   }
 
   @Test
-  public void testObjectArray() {
+  void testObjectArray() {
     mockSingleResponse();
-    assertEquals("value", proxy().objectArrayArgument(new String[]{"a","b","c"}));
+    assertEquals("value", proxy().objectArrayArgument(new String[]{"a", "b", "c"}));
     verify(requestSink).signal(MockitoTools.match(
-            r->Objects.equals(r.getArgumentTypes()[0], String[].class.getName()) && Arrays.equals((String[])r.getArguments()[0], new String[]{"a","b","c"}),
+            r -> Objects.equals(r.getArgumentTypes()[0], String[].class.getName()) && Arrays.equals((String[]) r.getArguments()[0], new String[]{"a", "b", "c"}),
             ServiceRequestMessage.class),
             any(), anyLong()
     );
   }
 
   @Test
-  public void testSingleValueResponse() {
+  void testSingleValueResponse() {
     mockSingleResponse();
     assertEquals("value", proxy().getString("arg"));
   }
 
   @Test
-  public void testInvocationMetrics() throws MetricException {
+  void testInvocationMetrics() throws MetricException {
     mockSingleResponse();
     ServiceMessageClient<TestService> client = ServiceMessageClient.builder(TestService.class).setRequestSink(requestSink).setMaxWait(100).build();
     assertEquals(0L, client.getMetrics().getData("requests").longValue());
@@ -112,15 +116,15 @@ public class ServiceMessageClientTest {
   }
 
   @Test
-  public void testErrorMetricsOnInitialTimeout() throws MetricException {
+  void testErrorMetricsOnInitialTimeout() throws MetricException {
     ServiceMessageClient<TestService> client = ServiceMessageClient.builder(TestService.class).setMaxWait(100).setRequestSink(requestSink).build();
     TestService service = client.getInstance();
-    assertFalse(LambdaUtils.tryTo(()->service.getString("arg")));
+    assertFalse(LambdaUtils.tryTo(() -> service.getString("arg")));
     assertEquals(1L, client.getMetrics().getData("errors").longValue());
   }
 
   @Test
-  public void testErrorMetricsOnStreamTimeout() throws InterruptedException, ExecutionException, TimeoutException, MetricException {
+  void testErrorMetricsOnStreamTimeout() throws InterruptedException, ExecutionException, TimeoutException, MetricException {
     ServiceMessageClient<TestService> client = ServiceMessageClient.builder(TestService.class).setMaxWait(500).setRequestSink(requestSink).build();
     Future<RequestContext> ctxref = mockResultSetResponse();
     //invoke a resultset
@@ -130,40 +134,36 @@ public class ServiceMessageClientTest {
     ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(0, list("a", "b", "c")));
     ResultSet<String> rs = result.get(100, TimeUnit.MILLISECONDS);
     //verify that we got an error when iterating the stream (due to timeout)
-    assertFalse(LambdaUtils.tryTo(()->ListUtils.list(rs.iterator())));
+    assertFalse(LambdaUtils.tryTo(() -> ListUtils.list(rs.iterator())));
     //verify that the error was counted correctly
     assertEquals(1L, client.getMetrics().getData("errors").longValue());
   }
 
-  @Test(expected = ServiceTimeOutException.class)
-  public void testSingleValueTimeout() {
-    proxy().getString("arg");
+  @Test
+  void testSingleValueTimeout() {
+    assertThrows(ServiceTimeOutException.class, () -> proxy().getString("arg"));
   }
 
   @Test
-  public void testSingleValueTimeoutSignalsRequestSinkTimeout() {
+  void testSingleValueTimeoutSignalsRequestSinkTimeout() {
     mockNoResponse();
-    try {
-      proxy().getString("arg");
-      fail();
-    } catch (ServiceTimeOutException ignored) {
-      verify(requestListener).timeout();
-    }
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testSingleValueException() {
-    mockNotifyError(new IllegalArgumentException());
-    proxy().getString("arg");
-  }
-
-  @Test(expected = ServiceTimeOutException.class)
-  public void testResultSetTimeout() {
-    proxy().getResultSet("arg");
+    assertThrows(ServiceTimeOutException.class, () -> proxy().getString("arg"));
+    verify(requestListener).timeout();
   }
 
   @Test
-  public void testResultSetTimeoutSignalsRequestSinkTimeout() {
+  void testSingleValueException() {
+    mockNotifyError(new IllegalArgumentException());
+    assertThrows(IllegalArgumentException.class, () -> proxy().getString("arg"));
+  }
+
+  @Test
+  void testResultSetTimeout() {
+    assertThrows(ServiceTimeOutException.class, () -> proxy().getResultSet("arg"));
+  }
+
+  @Test
+  void testResultSetTimeoutSignalsRequestSinkTimeout() {
     mockNoResponse();
     try {
       proxy().getResultSet("arg");
@@ -172,19 +172,19 @@ public class ServiceMessageClientTest {
     }
   }
 
-  @Test(expected = IllegalArgumentException.class)
-  public void testResultSetException() {
+  @Test
+  void testResultSetException() {
     mockNotifyError(new IllegalArgumentException());
-    proxy().getResultSet("arg");
-  }
-
-  @Test(expected = IllegalStateException.class)
-  public void testResultSetSubclassWithoutExtenderFunction() {
-    proxy().getMyResultSet("arg");
+    assertThrows(IllegalArgumentException.class, () -> proxy().getResultSet("arg"));
   }
 
   @Test
-  public void testResultSetSubclassWithAnnotatedExtender() throws ExecutionException, InterruptedException, TimeoutException {
+  void testResultSetSubclassWithoutExtenderFunction() {
+    assertThrows(IllegalStateException.class, () -> proxy().getMyResultSet("arg"));
+  }
+
+  @Test
+  void testResultSetSubclassWithAnnotatedExtender() throws ExecutionException, InterruptedException, TimeoutException {
     Future<RequestContext> ctxref = mockResultSetResponse();
     Future<ResultSet<String>> result = executor.submit(() -> proxy().getMyAnnotatedResultSet("arg"));
     RequestContext ctx = ctxref.get();
@@ -194,11 +194,11 @@ public class ServiceMessageClientTest {
   }
 
   @Test
-  public void testResultSetWithExtenderFunction() throws InterruptedException, ExecutionException, TimeoutException {
+  void testResultSetWithExtenderFunction() throws InterruptedException, ExecutionException, TimeoutException {
     Future<RequestContext> ctxref = mockResultSetResponse();
     TestService proxy = ServiceMessageClient.builder(TestService.class)
             .setRequestSink(requestSink).setMaxWait(100)
-            .withExtenderFunction(TestService.MyResultSet.class, rs-> new TestService.MyResultSet() {
+            .withExtenderFunction(TestService.MyResultSet.class, rs -> new TestService.MyResultSet() {
               @Override
               public int getCount() {
                 return rs.getCount();
@@ -230,7 +230,7 @@ public class ServiceMessageClientTest {
   }
 
   @Test
-  public void testResultSetSingleBatch() throws InterruptedException, ExecutionException, TimeoutException {
+  void testResultSetSingleBatch() throws InterruptedException, ExecutionException, TimeoutException {
     Future<RequestContext> ctxref = mockResultSetResponse();
     Future<ResultSet<String>> result = invokeResultSet();
     RequestContext ctx = ctxref.get();
@@ -239,50 +239,39 @@ public class ServiceMessageClientTest {
     assertEquals(list("a", "b", "c"), list(result.get(1000, TimeUnit.MILLISECONDS).iterator()));
   }
 
-  @Test(expected = ResultSetStreamInterruptedException.class)
-  public void testResultSetNonZeroInitialIndex() throws Throwable {
+  @Test
+  void testResultSetNonZeroInitialIndex() throws Throwable {
     Future<RequestContext> ctxref = mockResultSetResponse();
     Future<ResultSet<String>> result = invokeResultSet();
     RequestContext ctx = ctxref.get();
     ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(1, list("a", "b", "c")));
-    try {
-      result.get(100, TimeUnit.MILLISECONDS);
-    } catch (ExecutionException e) {
-      throw e.getCause();
-    }
-  }
-
-  @Test(expected = ResultSetStreamInterruptedException.class)
-  public void testResultSetOutOfOrderBatches() throws Throwable {
-    Future<RequestContext> ctxref = mockResultSetResponse();
-    Future<ResultSet<String>> result = invokeResultSet();
-    RequestContext ctx = ctxref.get();
-    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(0, list("a", "b", "c")));
-    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(2, list("a", "b", "c")));
-    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(1, list("a", "b", "c")));
-    try {
-      list(result.get(100, TimeUnit.MILLISECONDS).iterator());
-    } catch (ExecutionException e) {
-      throw e.getCause();
-    }
-  }
-
-  @Test(expected = ResultSetStreamInterruptedException.class)
-  public void testResultSetMissingFinalMessage() throws Throwable {
-    Future<RequestContext> ctxref = mockResultSetResponse();
-    Future<ResultSet<String>> result = invokeResultSet();
-    RequestContext ctx = ctxref.get();
-    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(0, list("a", "b", "c")));
-    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(1, list("a", "b", "c")));
-    try {
-      list(result.get(100, TimeUnit.MILLISECONDS).iterator());
-    } catch (ExecutionException e) {
-      throw e.getCause();
-    }
+    ExecutionException ex = assertThrows(ExecutionException.class, () -> result.get(100, TimeUnit.MILLISECONDS));
+    assertTrue(ex.getCause() instanceof ResultSetStreamInterruptedException);
   }
 
   @Test
-  public void testResultSetMultipleBatches() throws InterruptedException, ExecutionException, TimeoutException {
+  void testResultSetOutOfOrderBatches() throws Throwable {
+    Future<RequestContext> ctxref = mockResultSetResponse();
+    Future<ResultSet<String>> result = invokeResultSet();
+    RequestContext ctx = ctxref.get();
+    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(0, list("a", "b", "c")));
+    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(2, list("g", "h", "i"), true));
+    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(1, list("d", "e", "f")));
+    assertEquals(list("a", "b", "c", "d", "e", "f", "g", "h", "i"), list(result.get(100, TimeUnit.MILLISECONDS).iterator()));
+  }
+
+  @Test
+  void testResultSetMissingFinalMessage() throws Throwable {
+    Future<RequestContext> ctxref = mockResultSetResponse();
+    Future<ResultSet<String>> result = invokeResultSet();
+    RequestContext ctx = ctxref.get();
+    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(0, list("a", "b", "c")));
+    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(1, list("d", "e", "f")));
+    assertThrows(ResultSetStreamInterruptedException.class, ()->list(result.get(1000, TimeUnit.MILLISECONDS).iterator()));
+  }
+
+  @Test
+  void testResultSetMultipleBatches() throws InterruptedException, ExecutionException, TimeoutException {
     Future<RequestContext> ctxref = mockResultSetResponse();
     Future<ResultSet<String>> result = invokeResultSet();
     RequestContext ctx = ctxref.get(1000, TimeUnit.MILLISECONDS);
@@ -293,7 +282,7 @@ public class ServiceMessageClientTest {
   }
 
   @Test
-  public void testResultSetMultipleBatchesWithInitialTimeout() throws InterruptedException, ExecutionException, TimeoutException {
+  void testResultSetMultipleBatchesWithInitialTimeout() throws InterruptedException, ExecutionException, TimeoutException {
     Future<RequestContext> ctxref = mockResultSetResponse();
     Future<ResultSet<String>> result = invokeResultSet();
     RequestContext ctx = ctxref.get(1000, TimeUnit.MILLISECONDS);
@@ -306,7 +295,7 @@ public class ServiceMessageClientTest {
   }
 
   @Test
-  public void testResultSetMultipleBatchesWithStreamTimeout() throws InterruptedException, ExecutionException, TimeoutException {
+  void testResultSetMultipleBatchesWithStreamTimeout() throws InterruptedException, ExecutionException, TimeoutException {
     Future<RequestContext> ctxref = mockResultSetResponse();
     Future<ResultSet<String>> result = invokeResultSet();
     RequestContext ctx = ctxref.get(1000, TimeUnit.MILLISECONDS);
@@ -320,7 +309,7 @@ public class ServiceMessageClientTest {
   }
 
   @Test
-  public void testResultSetReceivesStreamingResults() throws InterruptedException, ExecutionException, TimeoutException {
+  void testResultSetReceivesStreamingResults() throws InterruptedException, ExecutionException, TimeoutException {
     Future<RequestContext> ctxref = mockResultSetResponse();
     Future<ResultSet<String>> result = invokeResultSet();
     RequestContext ctx = ctxref.get(1000, TimeUnit.MILLISECONDS);
@@ -341,7 +330,7 @@ public class ServiceMessageClientTest {
   }
 
   @Test
-  public void testResultSetReceivesExceptionMidStream() throws InterruptedException, ExecutionException, TimeoutException {
+  void testResultSetReceivesExceptionMidStream() throws InterruptedException, ExecutionException, TimeoutException {
     Future<RequestContext> ctxref = mockResultSetResponse();
     Future<ResultSet<String>> result = invokeResultSet();
     RequestContext ctx = ctxref.get(1000, TimeUnit.MILLISECONDS);
@@ -416,7 +405,7 @@ public class ServiceMessageClientTest {
     mockSingleResponse();
     assertEquals("value", testFunction.get());
     verify(requestSink).signal(MockitoTools.match(
-            r->Objects.equals(r.getArgumentTypes()[0], expectedTypeName) && r.getArguments()[0].equals(expectedValue),
+            r -> Objects.equals(r.getArgumentTypes()[0], expectedTypeName) && r.getArguments()[0].equals(expectedValue),
             ServiceRequestMessage.class),
             any(), anyLong()
     );
