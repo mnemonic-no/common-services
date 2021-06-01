@@ -150,8 +150,12 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
       sendKeepAlive(signalContext, request.getRequestID());
       while (!LambdaUtils.tryTo(() -> future.get(keepAliveInterval, TimeUnit.MILLISECONDS)) && !future.isDone()) {
         //send keepalive while request is being handled
-        sendKeepAlive(signalContext, request.getRequestID());
-        keepAlives.increment();
+        if (sendKeepAlive(signalContext, request.getRequestID())) {
+          keepAlives.increment();
+        } else {
+          LOGGER.warning("Interrupting callID=%s due to failed keepalive", request.getRequestID());
+          future.cancel(true);
+        }
       }
       //when future is resolved, the handler is done, so we can return
     }
@@ -160,13 +164,13 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
 
   //private methods
 
-  private void sendKeepAlive(RequestContext signalContext, String callID) {
+  private boolean sendKeepAlive(RequestContext signalContext, String callID) {
     //send keepalive with timeout twice the keepalive interval (so channel is not closed before next keepalive arrives)
     long until = clock.millis() + (keepAliveMultiplier * keepAliveInterval);
     if (LOGGER.isDebug()) {
       LOGGER.debug(">> keepalive [callID=%s until=%s]", callID, new Date(until));
     }
-    signalContext.keepAlive(until);
+    return signalContext.keepAlive(until);
   }
 
   private void handleRequest(ServiceRequestMessage request, RequestContext signalContext) {

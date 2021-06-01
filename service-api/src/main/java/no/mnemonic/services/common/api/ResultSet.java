@@ -15,6 +15,12 @@ public interface ResultSet<T> extends Iterable<T> {
   int getOffset();
 
   /**
+   * Allow client to signal that this resultset may be closed.
+   * The implementation may choose to ignore that.
+   */
+  default void close() {}
+
+  /**
    * A resultset iterator iterates the values of the resultset, which may be lazily loaded
    * as the client iterates them, depending on the implementation.
    * Implementation should wrap any errors during lazy loading into a

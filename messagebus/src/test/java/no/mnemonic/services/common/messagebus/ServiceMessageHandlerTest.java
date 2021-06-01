@@ -127,6 +127,16 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
   }
 
   @Test
+  public void testRequestInterruptsWhenKeepaliveFails() throws Exception {
+    when(signalContext.keepAlive(anyLong())).thenReturn(true).thenReturn(true).thenReturn(false);
+    CompletableFuture<String> result = new CompletableFuture<>();
+    when(testService.getString(any())).thenAnswer(i->result.get());
+    sendSignal(METHOD_GET_STRING);
+    endOfStream.get(1000, TimeUnit.MILLISECONDS);
+    verify(signalContext, times(3)).keepAlive(anyLong());
+  }
+
+  @Test
   public void testSingleValueResponse() throws InterruptedException, ExecutionException, TimeoutException {
     sendSignal(METHOD_GET_STRING);
     endOfStream.get(100, TimeUnit.MILLISECONDS);

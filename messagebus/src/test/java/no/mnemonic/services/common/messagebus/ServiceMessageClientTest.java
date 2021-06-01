@@ -140,6 +140,18 @@ class ServiceMessageClientTest {
   }
 
   @Test
+  void testRequestContextClosedOnResultSetClose() throws InterruptedException, ExecutionException, TimeoutException, MetricException {
+    Future<RequestContext> ctxref = mockResultSetResponse();
+    Future<ResultSet<String>> result = invokeResultSet();
+    RequestContext ctx = ctxref.get();
+    ctx.addResponse(ServiceStreamingResultSetResponseMessage.builder().build(0, list("a", "b", "c"), true));
+    ResultSet<String> resultset = result.get(100, TimeUnit.MILLISECONDS);
+    resultset.close();
+    assertTrue(ctx.isClosed());
+    verify(requestListener).close(any());
+  }
+
+  @Test
   void testSingleValueTimeout() {
     assertThrows(ServiceTimeOutException.class, () -> proxy().getString("arg"));
   }

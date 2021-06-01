@@ -89,6 +89,11 @@ public class StreamingResultSetContext<T> implements ResultSet<T> {
   }
 
   @Override
+  public void close() {
+    handler.close();
+  }
+
+  @Override
   public Iterator<T> iterator() {
     return new Iterator<T>() {
 
