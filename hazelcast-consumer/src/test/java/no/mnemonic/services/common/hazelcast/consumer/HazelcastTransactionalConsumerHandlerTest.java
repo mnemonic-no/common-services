@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -85,17 +85,12 @@ public class HazelcastTransactionalConsumerHandlerTest {
   }
 
   @Test
-  public void workerRun() throws Exception {
+  public void workerRun() throws InterruptedException, IOException, ConsumerGaveUpException {
     handler.startComponent();
     assertNotNull(workerTask.get());
     workerTask.get().run();
     verify(workerLifecycleListener, timeout(10000)).workerStopped(any());
-
-    verify(hazelcastInstance).newTransactionContext(any());
-    verify(transactionContext).beginTransaction();
-    verify(transactionContext).getQueue(HAZELCAST_QUEUE_NAME);
-    verify(txHazelcastQueue).poll(anyLong(), any());
-    verify(transactionContext).commitTransaction();
+    verify(transactionalConsumer, never()).consume(any());
   }
 
   @Test
@@ -108,8 +103,6 @@ public class HazelcastTransactionalConsumerHandlerTest {
     assertNotNull(workerTask.get());
     workerTask.get().run();
     verify(workerLifecycleListener, timeout(10000)).workerStopped(any());
-
-    verify(txHazelcastQueue, times(100)).poll(anyLong(), any());
     verify(transactionalConsumer).consume(argThat(c -> c.size() == 100));
   }
 
@@ -124,65 +117,7 @@ public class HazelcastTransactionalConsumerHandlerTest {
     assertNotNull(workerTask.get());
     workerTask.get().run();
     verify(workerLifecycleListener, timeout(10000)).workerStopped(any());
-
-    verify(txHazelcastQueue, times(3)).poll(anyLong(), any());
     verify(transactionalConsumer).consume(argThat(c -> c.size() == 2));
-  }
-
-  @Test
-  public void txRollbackOnError() throws Exception {
-    when(txHazelcastQueue.poll(anyLong(), any())).thenReturn("testvalue");
-    doThrow(new IOException()).when(transactionalConsumer).consume(any());
-
-    handler.startComponent();
-    assertNotNull(workerTask.get());
-    workerTask.get().run();
-    verify(workerLifecycleListener, timeout(10000)).workerStopped(any());
-
-    verify(transactionContext).rollbackTransaction();
-  }
-
-  @Test
-  public void txRollbackButDontThrowExceptionIfOptionIsSet() throws Exception {
-    AtomicBoolean consumerCalled = new AtomicBoolean(false);
-    when(txHazelcastQueue.poll(anyLong(), any())).thenReturn("testvalue");
-    doThrow(new IOException())
-            .doAnswer(inv -> {
-              consumerCalled.set(true);
-              return null;
-            })
-            .when(transactionalConsumer).consume(any());
-
-    handler.setKeepThreadAliveOnException(true);
-
-    handler.startComponent();
-    assertNotNull(workerTask.get());
-    workerTask.get().run();
-    verify(workerLifecycleListener, timeout(10000)).workerStopped(any());
-    verify(transactionContext).rollbackTransaction();
-    assertTrue(consumerCalled.get());
-  }
-
-  @Test
-  public void testRollbackTransactionAndGiveUpIfOptionIsSetAndConsumerGaveUp() throws IOException, InterruptedException, ConsumerGaveUpException {
-    AtomicBoolean consumerCalled = new AtomicBoolean(false);
-    when(txHazelcastQueue.poll(anyLong(), any())).thenReturn("testvalue");
-    doThrow(new IOException())
-            .doThrow(new ConsumerGaveUpException("error"))
-            .doAnswer(inv -> {
-              consumerCalled.set(true);
-              return null;
-            })
-            .when(transactionalConsumer).consume(any());
-
-    handler.setKeepThreadAliveOnException(true);
-
-    handler.startComponent();
-    assertNotNull(workerTask.get());
-    workerTask.get().run();
-    verify(workerLifecycleListener, timeout(10000)).workerStopped(any());
-    verify(transactionContext, times(2)).rollbackTransaction();
-    assertFalse(consumerCalled.get());
   }
 
 }
