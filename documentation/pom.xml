@@ -22,6 +22,7 @@
       <groupId>io.swagger</groupId>
       <artifactId>swagger-core</artifactId>
       <version>${swagger.version}</version>
+      <scope>provided</scope>
     </dependency>
     <!-- Swagger depends on JAXB but that has been moved out of Java with JDK11. -->
     <dependency>
