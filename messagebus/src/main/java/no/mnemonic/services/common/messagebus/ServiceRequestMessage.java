@@ -5,6 +5,9 @@ import no.mnemonic.commons.utilities.AppendUtils;
 import no.mnemonic.commons.utilities.StringUtils;
 import no.mnemonic.messaging.requestsink.Message;
 
+import static no.mnemonic.commons.utilities.ObjectUtils.ifNull;
+import static no.mnemonic.messaging.requestsink.Message.Priority.standard;
+
 /**
  * Request format for the service message bus
  */
@@ -18,13 +21,15 @@ public class ServiceRequestMessage implements Message, AppendMembers {
   private final String methodName;
   private final String[] argumentTypes;
   private final Object[] arguments;
+  private final Priority priority;
 
-  private ServiceRequestMessage(String requestID, String serviceName, String methodName, String[] argumentTypes, Object[] arguments) {
+  private ServiceRequestMessage(String requestID, String serviceName, String methodName, String[] argumentTypes, Object[] arguments, Priority priority) {
     this.requestID = requestID;
     this.serviceName = serviceName;
     this.methodName = methodName;
     this.argumentTypes = argumentTypes;
     this.arguments = arguments;
+    this.priority = priority;
     validate();
   }
 
@@ -33,6 +38,12 @@ public class ServiceRequestMessage implements Message, AppendMembers {
     AppendUtils.appendField(buf, "requestID", requestID);
     AppendUtils.appendField(buf, "serviceName", serviceName);
     AppendUtils.appendField(buf, "methodName", methodName);
+    AppendUtils.appendField(buf, "priority", priority);
+  }
+
+  @Override
+  public Priority getPriority() {
+    return priority;
   }
 
   @Override
@@ -90,12 +101,18 @@ public class ServiceRequestMessage implements Message, AppendMembers {
     private String methodName;
     private String[] argumentTypes;
     private Object[] arguments;
+    private Priority priority = standard;
 
     private Builder() {
     }
 
     ServiceRequestMessage build() {
-      return new ServiceRequestMessage(requestID, serviceName, methodName, argumentTypes, arguments);
+      return new ServiceRequestMessage(requestID, serviceName, methodName, argumentTypes, arguments, priority);
+    }
+
+    public Builder setPriority(Priority priority) {
+      this.priority = ifNull(priority, standard);
+      return this;
     }
 
     Builder setRequestID(String requestID) {

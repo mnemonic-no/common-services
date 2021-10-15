@@ -5,7 +5,12 @@ import net.sf.cglib.proxy.MethodInterceptor;
 import net.sf.cglib.proxy.MethodProxy;
 import no.mnemonic.commons.logging.Logger;
 import no.mnemonic.commons.logging.Logging;
-import no.mnemonic.commons.metrics.*;
+import no.mnemonic.commons.metrics.MetricAspect;
+import no.mnemonic.commons.metrics.MetricException;
+import no.mnemonic.commons.metrics.Metrics;
+import no.mnemonic.commons.metrics.MetricsData;
+import no.mnemonic.commons.metrics.TimerContext;
+import no.mnemonic.messaging.requestsink.Message;
 import no.mnemonic.messaging.requestsink.RequestHandler;
 import no.mnemonic.messaging.requestsink.RequestSink;
 import no.mnemonic.services.common.api.ResultSet;
@@ -25,11 +30,27 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
+import static no.mnemonic.commons.utilities.ObjectUtils.ifNull;
+import static no.mnemonic.services.common.messagebus.ServiceContext.Priority.standard;
+
 /**
  * A Service Message Client acts as a factory, providing an interface implementation which
  * proxies requests across a RequestSink infrastructure.
  * <p>
  * This requires a requestSink which is attached to a ServiceMessageHandler on the other end.
+ *
+ * <h3>Sending a request</h3>
+ * The ServiceMessageClient&lt;SERVICE&gt; exposes the interface SERVICE using <code>getInstance()</code>.
+ * Invoking any method on the <code>SERVICE</code> instance will send a request message.
+ * The current thread will block until the response is received and returned, or until timeout.
+ *
+ * <h3>Prioritizing requests</h3>
+ * To prioritize requests, the client can choose between three approaches:
+ * <ol>
+ *   <li>Change the <code>defaultPriority</code> of this ServiceMessageClient</li>
+ *   <li>Change the <i>thread priority</i> of the current thread by invoking <code>((ServiceProxy)SERVICE).getServiceContext().setThreadPriority(Priority)</code></li>
+ *   <li>Change the <i>next request priority</i> of the current thread by invoking <code>((ServiceProxy)SERVICE).getServiceContext().setNextPriority(Priority)</code></li>
+ * </ol>
  *
  * @param <T> the type of the service interface
  */
@@ -37,12 +58,18 @@ import java.util.function.Function;
 public class ServiceMessageClient<T extends Service> implements MetricAspect {
 
   private static final Logger LOGGER = Logging.getLogger(ServiceMessageClient.class);
+  private static final String OBJECT_EQUALS = "equals";
+  private static final String OBJECT_HASH_CODE = "hashCode";
+  private static final String SERVICE_PROXY_GET_SERVICE_CONTEXT = "getServiceContext";
 
   //properties
   private final long maxWait;
   private final Class<T> proxyInterface;
   private final RequestSink requestSink;
+  private final ServiceContext.Priority defaultPriority;
   private final Map<Class<?>, Function<ResultSet, ? extends ResultSet>> extenderFunctions;
+  private final ThreadLocal<ServiceContext.Priority> threadPriority = new ThreadLocal<>();
+  private final ThreadLocal<ServiceContext.Priority> nextPriority = new ThreadLocal<>();
 
   //variables
   private final AtomicReference<T> proxy = new AtomicReference<>();
@@ -58,16 +85,17 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
 
   /**
    * Create a new Service Message Client
-   *
-   * @param proxyInterface    the class of the service interface
+   *  @param proxyInterface    the class of the service interface
    * @param requestSink       the requestsink to use for messaging. Must be attached to a ServiceMessageHandler on the other side.
    * @param maxWait           the maximum milliseconds to wait for replies from the requestsink (will allow keepalives to extend this)
+   * @param defaultPriority   the default priority to use when sending request messages
    * @param extenderFunctions functions to extend resultset return types to subclasses, where subclasses are declared
    */
-  private ServiceMessageClient(Class<T> proxyInterface, RequestSink requestSink, long maxWait, Map<Class<?>, Function<ResultSet, ? extends ResultSet>> extenderFunctions) {
+  private ServiceMessageClient(Class<T> proxyInterface, RequestSink requestSink, long maxWait, ServiceContext.Priority defaultPriority, Map<Class<?>, Function<ResultSet, ? extends ResultSet>> extenderFunctions) {
     this.maxWait = maxWait;
     this.proxyInterface = proxyInterface;
     this.requestSink = requestSink;
+    this.defaultPriority = defaultPriority;
     this.extenderFunctions = new ConcurrentHashMap<>(extenderFunctions);
   }
 
@@ -99,7 +127,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
 
   private T createProxy() {
     Enhancer enhancer = new Enhancer();
-    enhancer.setSuperclass(proxyInterface);
+    enhancer.setInterfaces(new Class[]{ServiceProxy.class, proxyInterface});
     enhancer.setCallback(new MessageMethodInterceptor());
     //noinspection unchecked
     return (T) enhancer.create();
@@ -148,16 +176,31 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     return clz;
   }
 
+  private class ServiceContextImpl implements ServiceContext {
+    @Override
+    public void setThreadPriority(Priority priority) {
+      ServiceMessageClient.this.threadPriority.set(priority);
+    }
+
+    @Override
+    public void setNextRequestPriority(Priority priority) {
+      ServiceMessageClient.this.nextPriority.set(priority);
+    }
+  }
+
   private class MessageMethodInterceptor implements MethodInterceptor {
 
     public Object intercept(Object object, Method method, Object[] arguments, MethodProxy proxy)
             throws Throwable {
 
-      if (method.getName().equals("hashCode")) {
+      if (method.getName().equals(OBJECT_HASH_CODE)) {
         return proxyInterface.hashCode();
       }
-      if (method.getName().equals("equals")) {
+      if (method.getName().equals(OBJECT_EQUALS)) {
         return arguments[0] == object;
+      }
+      if (method.getName().equals(SERVICE_PROXY_GET_SERVICE_CONTEXT)) {
+        return new ServiceContextImpl();
       }
       // try invoking
       return invoke(proxy, arguments, method.getReturnType());
@@ -170,6 +213,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
         UUID requestID = UUID.randomUUID();
         ServiceRequestMessage msg = ServiceRequestMessage.builder()
                 .setRequestID(requestID.toString())
+                .setPriority(Message.Priority.valueOf(determinePriority().name()))
                 .setServiceName(proxyInterface.getName())
                 .setMethodName(proxy.getSignature().getName())
                 .setArgumentTypes(fromTypes(proxy.getSignature().getArgumentTypes()))
@@ -182,6 +226,16 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
         RequestHandler handler = RequestHandler.signal(requestSink, msg, true, maxWait);
         return handleResponses(handler, declaredReturnType);
       }
+    }
+  }
+
+  private ServiceContext.Priority determinePriority() {
+    if (nextPriority.get() != null) {
+      ServiceContext.Priority priority = nextPriority.get();
+      nextPriority.remove();
+      return priority;
+    } else {
+      return ifNull(threadPriority.get(), defaultPriority);
     }
   }
 
@@ -269,16 +323,22 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     private long maxWait;
     private Class<V> proxyInterface;
     private RequestSink requestSink;
+    private ServiceContext.Priority defaultPriority = standard;
     private final Map<Class<?>, Function<ResultSet, ? extends ResultSet>> extenderFunctions = new HashMap<>();
 
     public ServiceMessageClient<V> build() {
       if (proxyInterface == null) throw new IllegalArgumentException("proxyInterface not set");
       if (requestSink == null) throw new IllegalArgumentException("requestSink not set");
       if (maxWait < 0) throw new IllegalArgumentException("maxWait must be a non-negative integer");
-      return new ServiceMessageClient<>(proxyInterface, requestSink, maxWait, Collections.unmodifiableMap(extenderFunctions));
+      return new ServiceMessageClient<>(proxyInterface, requestSink, maxWait, defaultPriority, Collections.unmodifiableMap(extenderFunctions));
     }
 
     //setters
+
+    public Builder<V> setDefaultPriority(ServiceContext.Priority defaultPriority) {
+      this.defaultPriority = ifNull(defaultPriority, standard);
+      return this;
+    }
 
     public <R extends ResultSet> Builder<V> withExtenderFunction(Class<R> returnType, Function<ResultSet, R> extenderFunction) {
       this.extenderFunctions.put(returnType, extenderFunction);

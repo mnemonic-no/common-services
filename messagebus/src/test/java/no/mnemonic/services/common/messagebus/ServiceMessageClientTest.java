@@ -4,6 +4,7 @@ import no.mnemonic.commons.metrics.MetricException;
 import no.mnemonic.commons.testtools.MockitoTools;
 import no.mnemonic.commons.utilities.collections.ListUtils;
 import no.mnemonic.commons.utilities.lambda.LambdaUtils;
+import no.mnemonic.messaging.requestsink.Message;
 import no.mnemonic.messaging.requestsink.RequestContext;
 import no.mnemonic.messaging.requestsink.RequestListener;
 import no.mnemonic.messaging.requestsink.RequestSink;
@@ -35,6 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -63,6 +65,42 @@ class ServiceMessageClientTest {
                             && r.getArgumentTypes().length == 1 && Objects.equals(r.getArgumentTypes()[0], String.class.getName())
                             && r.getArguments().length == 1 && r.getArguments()[0].equals("arg"),
             ServiceRequestMessage.class), any(), eq(100L));
+  }
+
+  @Test
+  void testDefaultPriority() {
+    mockSingleResponse();
+    proxy().getString("arg");
+    verify(requestSink).signal(match(r -> r.getPriority() == Message.Priority.standard, ServiceRequestMessage.class), any(), anyLong());
+  }
+
+  @Test
+  void testSetDefaultPriority() {
+    mockSingleResponse();
+    TestService srv = proxyBuilder().setDefaultPriority(ServiceContext.Priority.bulk).build().getInstance();
+    srv.getString("arg");
+    verify(requestSink).signal(match(r -> r.getPriority() == Message.Priority.bulk, ServiceRequestMessage.class), any(), anyLong());
+  }
+
+  @Test
+  void testSetThreadPriority() {
+    mockSingleResponse();
+    TestService srv = proxy();
+    ((ServiceProxy)srv).getServiceContext().setThreadPriority(ServiceContext.Priority.bulk);
+    srv.getString("arg");
+    srv.getString("arg");
+    verify(requestSink, times(2)).signal(match(r -> r.getPriority() == Message.Priority.bulk, ServiceRequestMessage.class), any(), anyLong());
+  }
+
+  @Test
+  void testSetNextPriority() {
+    mockSingleResponse();
+    TestService srv = proxy();
+    ((ServiceProxy)srv).getServiceContext().setNextRequestPriority(ServiceContext.Priority.bulk);
+    srv.getString("arg");
+    srv.getString("arg");
+    verify(requestSink).signal(match(r -> r.getPriority() == Message.Priority.bulk, ServiceRequestMessage.class), any(), anyLong());
+    verify(requestSink).signal(match(r -> r.getPriority() == Message.Priority.standard, ServiceRequestMessage.class), any(), anyLong());
   }
 
   @Test
@@ -364,11 +402,15 @@ class ServiceMessageClientTest {
   }
 
   private TestService proxy() {
-    return ServiceMessageClient.builder(TestService.class)
-            .setRequestSink(requestSink)
-            .setMaxWait(100)
+    return proxyBuilder()
             .build()
             .getInstance();
+  }
+
+  private ServiceMessageClient.Builder<TestService> proxyBuilder() {
+    return ServiceMessageClient.builder(TestService.class)
+            .setRequestSink(requestSink)
+            .setMaxWait(100);
   }
 
   private void mockNoResponse() {
