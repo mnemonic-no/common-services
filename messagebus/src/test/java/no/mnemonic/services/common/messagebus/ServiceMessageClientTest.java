@@ -12,6 +12,7 @@ import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.ResultSetStreamInterruptedException;
 import no.mnemonic.services.common.api.ServiceTimeOutException;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -32,13 +33,8 @@ import java.util.function.Supplier;
 import static no.mnemonic.commons.testtools.MockitoTools.match;
 import static no.mnemonic.commons.utilities.collections.ListUtils.list;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ServiceMessageClientTest {
@@ -53,6 +49,11 @@ class ServiceMessageClientTest {
   @AfterAll
   public static void afterAll() {
     executor.shutdown();
+  }
+
+  @AfterEach
+  void tearDown() {
+    ServiceMessageClient.setGlobalThreadPriority(null);
   }
 
   @Test
@@ -87,6 +88,23 @@ class ServiceMessageClientTest {
     mockSingleResponse();
     TestService srv = proxy();
     ((ServiceProxy)srv).getServiceContext().setThreadPriority(ServiceContext.Priority.bulk);
+    srv.getString("arg");
+    srv.getString("arg");
+    verify(requestSink, times(2)).signal(match(r -> r.getPriority() == Message.Priority.bulk, ServiceRequestMessage.class), any(), anyLong());
+  }
+
+  @Test
+  void testGetGlobalThreadPriority() {
+    assertEquals(ServiceContext.Priority.standard, ServiceMessageClient.getGlobalThreadPriority());
+    ServiceMessageClient.setGlobalThreadPriority(ServiceContext.Priority.bulk);
+    assertEquals(ServiceContext.Priority.bulk, ServiceMessageClient.getGlobalThreadPriority());
+  }
+
+  @Test
+  void testSetGlobalThreadPriority() {
+    mockSingleResponse();
+    TestService srv = proxy();
+    ServiceMessageClient.setGlobalThreadPriority(ServiceContext.Priority.bulk);
     srv.getString("arg");
     srv.getString("arg");
     verify(requestSink, times(2)).signal(match(r -> r.getPriority() == Message.Priority.bulk, ServiceRequestMessage.class), any(), anyLong());

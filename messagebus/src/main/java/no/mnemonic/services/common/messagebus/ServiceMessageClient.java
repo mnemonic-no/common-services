@@ -70,6 +70,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
   private final Map<Class<?>, Function<ResultSet, ? extends ResultSet>> extenderFunctions;
   private final ThreadLocal<ServiceContext.Priority> threadPriority = new ThreadLocal<>();
   private final ThreadLocal<ServiceContext.Priority> nextPriority = new ThreadLocal<>();
+  private static final ThreadLocal<ServiceContext.Priority> globalThreadPriority = new ThreadLocal<>();
 
   //variables
   private final AtomicReference<T> proxy = new AtomicReference<>();
@@ -112,6 +113,21 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
 
 
   //public methods
+
+  /**
+   * Allow setting the priority for ALL ServiceMessageClients in this VM.
+   * This priority will override the default priority set on the client, but will be overridden by
+   * the threadPriority or the nextPriority if set on any specific client.
+   *
+   * @param priority the priority to use for the current thread, if not overridden by threadPriority or nextPriority
+   */
+  public static void setGlobalThreadPriority(ServiceContext.Priority priority) {
+    globalThreadPriority.set(priority);
+  }
+
+  public static ServiceContext.Priority getGlobalThreadPriority() {
+    return ifNull(globalThreadPriority.get(), standard);
+  }
 
   /**
    * @return an instance of the proxy interface, which will submit all invoked methods onto the service message bus
@@ -234,8 +250,12 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
       ServiceContext.Priority priority = nextPriority.get();
       nextPriority.remove();
       return priority;
+    } else if (threadPriority.get() != null){
+      return threadPriority.get();
+    } else if (globalThreadPriority.get() != null){
+      return globalThreadPriority.get();
     } else {
-      return ifNull(threadPriority.get(), defaultPriority);
+      return defaultPriority;
     }
   }
 
