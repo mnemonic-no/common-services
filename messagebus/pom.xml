@@ -39,11 +39,6 @@
       <version>${mnemonic.commons.version}</version>
     </dependency>
     <dependency>
-      <groupId>cglib</groupId>
-      <artifactId>cglib</artifactId>
-      <version>${cglib.version}</version>
-    </dependency>
-    <dependency>
       <groupId>no.mnemonic.commons</groupId>
       <artifactId>metrics</artifactId>
       <version>${mnemonic.commons.version}</version>

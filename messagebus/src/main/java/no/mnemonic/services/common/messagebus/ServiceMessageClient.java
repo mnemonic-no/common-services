@@ -1,15 +1,8 @@
 package no.mnemonic.services.common.messagebus;
 
-import net.sf.cglib.proxy.Enhancer;
-import net.sf.cglib.proxy.MethodInterceptor;
-import net.sf.cglib.proxy.MethodProxy;
 import no.mnemonic.commons.logging.Logger;
 import no.mnemonic.commons.logging.Logging;
-import no.mnemonic.commons.metrics.MetricAspect;
-import no.mnemonic.commons.metrics.MetricException;
-import no.mnemonic.commons.metrics.Metrics;
-import no.mnemonic.commons.metrics.MetricsData;
-import no.mnemonic.commons.metrics.TimerContext;
+import no.mnemonic.commons.metrics.*;
 import no.mnemonic.messaging.requestsink.Message;
 import no.mnemonic.messaging.requestsink.RequestHandler;
 import no.mnemonic.messaging.requestsink.RequestSink;
@@ -17,10 +10,11 @@ import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.ServiceTimeOutException;
 import no.mnemonic.services.common.api.annotations.ResultSetExtention;
-import org.objectweb.asm.Type;
 
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -60,6 +54,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
   private static final Logger LOGGER = Logging.getLogger(ServiceMessageClient.class);
   private static final String OBJECT_EQUALS = "equals";
   private static final String OBJECT_HASH_CODE = "hashCode";
+  private static final String OBJECT_TO_STRING = "toString";
   private static final String SERVICE_PROXY_GET_SERVICE_CONTEXT = "getServiceContext";
 
   //properties
@@ -142,54 +137,12 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
   //private methods
 
   private T createProxy() {
-    Enhancer enhancer = new Enhancer();
-    enhancer.setInterfaces(new Class[]{ServiceProxy.class, proxyInterface});
-    enhancer.setCallback(new MessageMethodInterceptor());
     //noinspection unchecked
-    return (T) enhancer.create();
-  }
-
-  private static String[] fromTypes(Type[] types) {
-    if (types == null) throw new IllegalArgumentException("Types was null!");
-    String[] clz = new String[types.length];
-    for (int i = 0; i < clz.length; i++) {
-      Type t = types[i];
-      switch (t.getSort()) {
-        case Type.OBJECT:
-          clz[i] = t.getClassName();
-          break;
-        case Type.LONG:
-          clz[i] = Long.TYPE.getName();
-          break;
-        case Type.FLOAT:
-          clz[i] = Float.TYPE.getName();
-          break;
-        case Type.DOUBLE:
-          clz[i] = Double.TYPE.getName();
-          break;
-        case Type.BYTE:
-          clz[i] = Byte.TYPE.getName();
-          break;
-        case Type.INT:
-          clz[i] = Integer.TYPE.getName();
-          break;
-        case Type.BOOLEAN:
-          clz[i] = Boolean.TYPE.getName();
-          break;
-        case Type.SHORT:
-          clz[i] = Short.TYPE.getName();
-          break;
-        case Type.CHAR:
-          clz[i] = Character.TYPE.getName();
-          break;
-        case Type.ARRAY:
-          clz[i] = t.getDescriptor().replace("/", ".");
-          break;
-        default:
-          throw new IllegalArgumentException("Invalid argument type: " + t.getSort());
-      }
-    }
-    return clz;
+    return (T) Proxy.newProxyInstance(
+            proxyInterface.getClassLoader(),
+            new Class[]{ServiceProxy.class, proxyInterface},
+            new MessageInvocationHandler()
+    );
   }
 
   private class ServiceContextImpl implements ServiceContext {
@@ -204,13 +157,14 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     }
   }
 
-  private class MessageMethodInterceptor implements MethodInterceptor {
-
-    public Object intercept(Object object, Method method, Object[] arguments, MethodProxy proxy)
-            throws Throwable {
-
+  private class MessageInvocationHandler implements InvocationHandler {
+    @Override
+    public Object invoke(Object object, Method method, Object[] arguments) throws Throwable {
       if (method.getName().equals(OBJECT_HASH_CODE)) {
         return proxyInterface.hashCode();
+      }
+      if (method.getName().equals(OBJECT_TO_STRING)) {
+        return proxyInterface.toString();
       }
       if (method.getName().equals(OBJECT_EQUALS)) {
         return arguments[0] == object;
@@ -219,10 +173,10 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
         return new ServiceContextImpl();
       }
       // try invoking
-      return invoke(proxy, arguments, method.getReturnType());
+      return invoke(method, arguments);
     }
 
-    private Object invoke(MethodProxy proxy, Object[] arguments, Class<?> declaredReturnType) throws Throwable {
+    private Object invoke(Method method, Object[] arguments) throws Throwable {
       requests.increment();
       //noinspection unused
       try (TimerContext timer = TimerContext.timerMillis(totalRequestTime::add)) {
@@ -231,8 +185,8 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
                 .setRequestID(requestID.toString())
                 .setPriority(Message.Priority.valueOf(determinePriority().name()))
                 .setServiceName(proxyInterface.getName())
-                .setMethodName(proxy.getSignature().getName())
-                .setArgumentTypes(fromTypes(proxy.getSignature().getArgumentTypes()))
+                .setMethodName(method.getName())
+                .setArgumentTypes(fromTypes(method.getParameterTypes()))
                 .setArguments(arguments)
                 .build();
 
@@ -240,8 +194,17 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
           LOGGER.debug(">> signal [callID=%s service=%s method=%s]", msg.getRequestID(), msg.getServiceName(), msg.getMethodName());
         }
         RequestHandler handler = RequestHandler.signal(requestSink, msg, true, maxWait);
-        return handleResponses(handler, declaredReturnType);
+        return handleResponses(handler, method.getReturnType());
       }
+    }
+
+    private String[] fromTypes(Class<?>[] types) {
+      if (types == null) throw new IllegalArgumentException("Types was null!");
+      String[] clz = new String[types.length];
+      for (int i = 0; i < clz.length; i++) {
+        clz[i] = types[i].getName();
+      }
+      return clz;
     }
   }
 
