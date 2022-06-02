@@ -1,36 +1,34 @@
 package no.mnemonic.services.common.hazelcast.consumer;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.core.TransactionalQueue;
-import com.hazelcast.transaction.TransactionContext;
-import com.hazelcast.transaction.TransactionOptions;
 import no.mnemonic.commons.component.Dependency;
 import no.mnemonic.commons.component.LifecycleAspect;
 import no.mnemonic.commons.logging.Logger;
 import no.mnemonic.commons.logging.Logging;
-import no.mnemonic.commons.metrics.*;
-import no.mnemonic.commons.utilities.collections.CollectionUtils;
-import no.mnemonic.services.common.hazelcast.consumer.exception.ConsumerGaveUpException;
+import no.mnemonic.commons.metrics.MetricAspect;
+import no.mnemonic.commons.metrics.MetricException;
+import no.mnemonic.commons.metrics.MetricsData;
 
 import javax.inject.Provider;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static no.mnemonic.commons.utilities.ObjectUtils.ifNotNull;
-import static no.mnemonic.commons.utilities.collections.MapUtils.map;
 
 public class HazelcastTransactionalConsumerHandler<T> extends HazelcastTransactionalConsumer<T> implements LifecycleAspect, MetricAspect {
 
   private static final Logger LOG = Logging.getLogger(HazelcastTransactionalConsumerHandler.class);
 
   private static final int DEFAULT_WORKERS_COUNT = 1;
+  private static final String CORRELATION_ID = "correlationID";
 
   @Dependency
   private final Provider<TransactionalConsumer<T>> consumerProvider;
@@ -104,7 +102,13 @@ public class HazelcastTransactionalConsumerHandler<T> extends HazelcastTransacti
 
     try (TransactionalConsumer<T> consumer = consumerProvider.get()) {
       while (!ifNotNull(workerPool.get(), ExecutorService::isShutdown, true)) {
-        consumeNextBatch(consumer);
+        String originalCorrelationID = Logging.getLoggingContext().get(CORRELATION_ID);
+        Logging.getLoggingContext().put(CORRELATION_ID, UUID.randomUUID().toString());
+        try {
+          consumeNextBatch(consumer);
+        } finally {
+          Logging.getLoggingContext().put(CORRELATION_ID, originalCorrelationID);
+        }
       }
     } catch (Exception e) {
       // Catch all exceptions that fail the thread
