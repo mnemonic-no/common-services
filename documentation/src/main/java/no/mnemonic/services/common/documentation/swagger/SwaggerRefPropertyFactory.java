@@ -4,6 +4,7 @@ import io.swagger.models.ModelImpl;
 import io.swagger.models.properties.ArrayProperty;
 import io.swagger.models.properties.Property;
 import io.swagger.models.properties.RefProperty;
+import io.swagger.models.refs.RefFormat;
 import no.mnemonic.commons.utilities.StringUtils;
 
 /**
@@ -39,7 +40,7 @@ class SwaggerRefPropertyFactory {
   }
 
   private static RefProperty createObjectRefProperty(ModelImpl innerModel) {
-    return new RefProperty(!StringUtils.isEmpty(innerModel.getReference()) ? innerModel.getReference() : innerModel.getName());
+    return new RefProperty(!StringUtils.isEmpty(innerModel.getReference()) ? innerModel.getReference() : innerModel.getName(), RefFormat.INTERNAL);
   }
 
   private static ArrayProperty createArrayRefProperty(ModelImpl innerModel) {

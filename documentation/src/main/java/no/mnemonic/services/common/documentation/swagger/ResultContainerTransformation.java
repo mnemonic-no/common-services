@@ -5,6 +5,7 @@ import io.swagger.models.*;
 import io.swagger.models.properties.ArrayProperty;
 import io.swagger.models.properties.Property;
 import io.swagger.models.properties.RefProperty;
+import io.swagger.models.refs.RefFormat;
 import io.swagger.util.Json;
 import no.mnemonic.commons.utilities.collections.MapUtils;
 
@@ -69,7 +70,7 @@ public class ResultContainerTransformation implements SwaggerModelTransformation
     }
 
     ModelImpl newSchemaModel = injectResultContainerModel(swagger, (ModelImpl) model, containerType);
-    return newSchemaModel != null ? new RefProperty(newSchemaModel.getName()) : null;
+    return newSchemaModel != null ? new RefProperty(newSchemaModel.getName(), RefFormat.INTERNAL) : null;
   }
 
   private ModelImpl injectResultContainerModel(Swagger swagger, ModelImpl innerModel, SwaggerRefPropertyFactory.PropertyContainerType containerType) {
