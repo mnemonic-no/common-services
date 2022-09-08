@@ -6,7 +6,11 @@ import com.hazelcast.transaction.TransactionContext;
 import com.hazelcast.transaction.TransactionOptions;
 import no.mnemonic.commons.logging.Logger;
 import no.mnemonic.commons.logging.Logging;
-import no.mnemonic.commons.metrics.*;
+import no.mnemonic.commons.metrics.MetricAspect;
+import no.mnemonic.commons.metrics.MetricException;
+import no.mnemonic.commons.metrics.MetricsData;
+import no.mnemonic.commons.metrics.PerformanceMonitor;
+import no.mnemonic.commons.metrics.TimerContext;
 import no.mnemonic.commons.utilities.collections.CollectionUtils;
 import no.mnemonic.services.common.hazelcast.consumer.exception.ConsumerGaveUpException;
 
@@ -39,6 +43,7 @@ public class HazelcastTransactionalConsumer<T> implements MetricAspect {
   private final PerformanceMonitor workerExecution = new PerformanceMonitor(TimeUnit.SECONDS, 10, 1);
   private final LongAdder itemSubmitCount = new LongAdder();
   private final LongAdder skipEmptyBulk = new LongAdder();
+  private final LongAdder bulkFailedCount = new LongAdder();
 
   public HazelcastTransactionalConsumer(HazelcastInstance hazelcastInstance, String hazelcastQueueName) {
     if (hazelcastInstance == null) throw new IllegalArgumentException("hazelcastInstance not provided");
@@ -55,6 +60,7 @@ public class HazelcastTransactionalConsumer<T> implements MetricAspect {
             .addData("queue.poll.timeout.count", queuePollTimeoutCount)
             .addData("item.submit.count", itemSubmitCount.longValue())
             .addData("bulk.skip.count", skipEmptyBulk.longValue())
+            .addData("bulk.failed.count", bulkFailedCount.longValue())
             .addData("bulk.submit.count", bulkSubmit.getTotalInvocations())
             .addData("bulk.submit.time.spent", bulkSubmit.getTotalTimeSpent())
             .addData("worker.execute.count", workerExecution.getTotalInvocations())
@@ -64,9 +70,9 @@ public class HazelcastTransactionalConsumer<T> implements MetricAspect {
   /**
    * @param consumer the consumer to handle batches of items to consume
    * @return the number of consumed items
-   * @throws InterruptedException
-   * @throws IOException
-   * @throws ConsumerGaveUpException
+   * @throws InterruptedException if consumer is interrupted waiting for data
+   * @throws IOException if consumer fails
+   * @throws ConsumerGaveUpException if consumer refuses to retry more times
    */
   public int consumeNextBatch(TransactionalConsumer<T> consumer) throws InterruptedException, IOException, ConsumerGaveUpException {
     TransactionContext transactionContext = hazelcastInstance.newTransactionContext(
@@ -108,6 +114,7 @@ public class HazelcastTransactionalConsumer<T> implements MetricAspect {
       if (!keepThreadAliveOnException) {
         throw e;  // exception happens which leads thread to stop
       }
+      bulkFailedCount.increment();
       LOG.error(e, "An exception was thrown when consuming batch");
       return 0;
     }

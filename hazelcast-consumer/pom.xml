@@ -38,6 +38,11 @@
       <artifactId>documentchannel</artifactId>
       <version>${mnemonic.messaging.version}</version>
     </dependency>
+    <dependency>
+      <groupId>no.mnemonic.messaging</groupId>
+      <artifactId>documentchannel-kafka</artifactId>
+      <version>${mnemonic.messaging.version}</version>
+    </dependency>
 
     <dependency>
       <groupId>com.hazelcast</groupId>
