@@ -16,7 +16,6 @@ import no.mnemonic.commons.metrics.TimerContext;
 import no.mnemonic.commons.utilities.collections.CollectionUtils;
 import no.mnemonic.messaging.documentchannel.DocumentBatch;
 import no.mnemonic.messaging.documentchannel.DocumentSource;
-import no.mnemonic.messaging.documentchannel.kafka.KafkaDocumentSource;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -65,7 +64,7 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
   private final LongAdder queueOfferFailedCount = new LongAdder();
 
   public KafkaToHazelcastHandler(
-          KafkaDocumentSource<T> source,
+          DocumentSource<T> source,
           HazelcastInstance hazelcastInstance,
           String hazelcastQueueName) {
     this.source = source;
