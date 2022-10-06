@@ -14,8 +14,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -65,15 +64,24 @@ public class KafkaToHazelcastHandlerTest {
     handler.runSingle();
     verify(transactionContext).rollbackTransaction();
     verify(batch).reject();
+    assertTrue(handler.isAlive());
+  }
+
+  @Test
+  public void documentReceivedOfferUnexpectedException() throws Exception {
+    handler.setKeepThreadAliveOnException(false);
+    when(transactionalQueue.offer(any(), anyLong(), any())).thenThrow(RuntimeException.class);
+    assertThrows(RuntimeException.class, () -> handler.runSingle());
+    verify(transactionContext).rollbackTransaction();
+    verify(batch).reject();
     assertFalse(handler.isAlive());
   }
 
   @Test
-  public void documentReceivedOfferTimeoutWithKeepalive() throws Exception {
+  public void documentReceivedOfferUnexpectedExceptionKeepAliveTrue() throws Exception {
     handler.setKeepThreadAliveOnException(true);
-    // offer timeout
-    when(transactionalQueue.offer(any(), anyLong(), any())).thenReturn(false);
-    handler.runSingle();
+    when(transactionalQueue.offer(any(), anyLong(), any())).thenThrow(RuntimeException.class);
+    assertDoesNotThrow(() -> handler.runSingle());
     verify(transactionContext).rollbackTransaction();
     verify(batch).reject();
     assertTrue(handler.isAlive());

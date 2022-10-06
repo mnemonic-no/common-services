@@ -8,11 +8,7 @@ import no.mnemonic.commons.component.Dependency;
 import no.mnemonic.commons.component.LifecycleAspect;
 import no.mnemonic.commons.logging.Logger;
 import no.mnemonic.commons.logging.Logging;
-import no.mnemonic.commons.metrics.MetricAspect;
-import no.mnemonic.commons.metrics.MetricException;
-import no.mnemonic.commons.metrics.Metrics;
-import no.mnemonic.commons.metrics.MetricsData;
-import no.mnemonic.commons.metrics.TimerContext;
+import no.mnemonic.commons.metrics.*;
 import no.mnemonic.commons.utilities.collections.CollectionUtils;
 import no.mnemonic.messaging.documentchannel.DocumentBatch;
 import no.mnemonic.messaging.documentchannel.DocumentSource;
@@ -86,7 +82,7 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
     LOGGER.info("Stop " + getClass().getSimpleName());
     alive.set(false);
     executorService.shutdown();
-    tryTo(()->executorService.awaitTermination(10, TimeUnit.SECONDS));
+    tryTo(() -> executorService.awaitTermination(10, TimeUnit.SECONDS));
   }
 
   @Override
@@ -154,8 +150,12 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
   private class KafkaWorker implements Runnable {
     @Override
     public void run() {
-      while(alive.get()) {
-        processBatch();
+      try {
+        while (alive.get()) {
+          processBatch();
+        }
+      } finally {
+        alive.set(false);
       }
     }
 
@@ -175,23 +175,26 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
       TransactionalQueue<T> transactionalQueue = transactionContext.getQueue(hazelcastQueueName);
 
       try {
-
         for (T doc : documents) {
           documentReceived(transactionalQueue, doc);
         }
         transactionContext.commitTransaction();
         batch.acknowledge();
-
       } catch (TransactionTimeoutException e) {
-
         transactionContext.rollbackTransaction();
         batch.reject();
 
-        if (!keepThreadAliveOnException) {
-          LOGGER.error(e, "Shutting down worker thread after transaction timeout");
-          stopComponent();
-        }
+        LOGGER.warning(e, "Timed out when offering records to Hazelcast queue");
+      } catch (Exception e) {
+        transactionContext.rollbackTransaction();
+        batch.reject();
 
+        LOGGER.error(e, "Caught unexpected exception when offering records to Hazelcast queue");
+        if (!keepThreadAliveOnException) {
+          LOGGER.info("Shutting down worker thread");
+          alive.set(false);
+          throw e;
+        }
       }
     }
   }
