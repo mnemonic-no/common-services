@@ -6,11 +6,7 @@ import com.hazelcast.transaction.TransactionContext;
 import com.hazelcast.transaction.TransactionOptions;
 import no.mnemonic.commons.logging.Logger;
 import no.mnemonic.commons.logging.Logging;
-import no.mnemonic.commons.metrics.MetricAspect;
-import no.mnemonic.commons.metrics.MetricException;
-import no.mnemonic.commons.metrics.MetricsData;
-import no.mnemonic.commons.metrics.PerformanceMonitor;
-import no.mnemonic.commons.metrics.TimerContext;
+import no.mnemonic.commons.metrics.*;
 import no.mnemonic.commons.utilities.collections.CollectionUtils;
 import no.mnemonic.services.common.hazelcast.consumer.exception.ConsumerGaveUpException;
 
@@ -18,6 +14,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 public class HazelcastTransactionalConsumer<T> implements MetricAspect {
@@ -27,7 +24,8 @@ public class HazelcastTransactionalConsumer<T> implements MetricAspect {
   private static final int DEFAULT_BULK_SIZE = 100;
   private static final long DEFAULT_HAZELCAST_QUEUE_POLL_TIMEOUT_SEC = 1;
   private static final long DEFAULT_HZ_TRANSACTION_TIMEOUT_SEC = TimeUnit.MINUTES.toSeconds(2L);  // same default as from HZ TransactionOptions
-  private static final boolean DEFAULT_HAZELCAST_KEEP_THREAD_ALIVE_ON_EXCEPTION = false;
+  private static final boolean DEFAULT_HAZELCAST_KEEP_THREAD_ALIVE_ON_EXCEPTION = true;
+  private static final int DEFAULT_PERMITTED_CONSECUTIVE_ERRORS = 3;
 
   private final HazelcastInstance hazelcastInstance;
   private final String hazelcastQueueName;
@@ -36,6 +34,7 @@ public class HazelcastTransactionalConsumer<T> implements MetricAspect {
   private long hazelcastQueuePollTimeoutSec = DEFAULT_HAZELCAST_QUEUE_POLL_TIMEOUT_SEC;
   private long hazelcastTransactionTimeoutSec = DEFAULT_HZ_TRANSACTION_TIMEOUT_SEC;
   private boolean keepThreadAliveOnException = DEFAULT_HAZELCAST_KEEP_THREAD_ALIVE_ON_EXCEPTION;
+  private long permittedConsecutiveErrors = DEFAULT_PERMITTED_CONSECUTIVE_ERRORS;
 
   private final LongAdder queuePollTimeoutCount = new LongAdder();
   private final PerformanceMonitor queuePoll = new PerformanceMonitor(TimeUnit.SECONDS, 10, 1);
@@ -43,7 +42,12 @@ public class HazelcastTransactionalConsumer<T> implements MetricAspect {
   private final PerformanceMonitor workerExecution = new PerformanceMonitor(TimeUnit.SECONDS, 10, 1);
   private final LongAdder itemSubmitCount = new LongAdder();
   private final LongAdder skipEmptyBulk = new LongAdder();
+  private final LongAdder bulkAcceptedCount = new LongAdder();
+  private final LongAdder bulkRejectedCount = new LongAdder();
   private final LongAdder bulkFailedCount = new LongAdder();
+
+  // Used to keep track whether failed_count should be reported.
+  private final AtomicLong consecutiveErrors = new AtomicLong();
 
   public HazelcastTransactionalConsumer(HazelcastInstance hazelcastInstance, String hazelcastQueueName) {
     if (hazelcastInstance == null) throw new IllegalArgumentException("hazelcastInstance not provided");
@@ -58,9 +62,11 @@ public class HazelcastTransactionalConsumer<T> implements MetricAspect {
             .addData("queue.poll.count", queuePoll.getTotalInvocations())
             .addData("queue.poll.time.spent", queuePoll.getTotalTimeSpent())
             .addData("queue.poll.timeout.count", queuePollTimeoutCount)
-            .addData("item.submit.count", itemSubmitCount.longValue())
-            .addData("bulk.skip.count", skipEmptyBulk.longValue())
-            .addData("bulk.failed.count", bulkFailedCount.longValue())
+            .addData("item.submit.count", itemSubmitCount)
+            .addData("bulk.skip.count", skipEmptyBulk)
+            .addData("bulk.accepted.count", bulkAcceptedCount)
+            .addData("bulk.rejected.count", bulkRejectedCount)
+            .addData("bulk.failed.count", bulkFailedCount)
             .addData("bulk.submit.count", bulkSubmit.getTotalInvocations())
             .addData("bulk.submit.time.spent", bulkSubmit.getTotalTimeSpent())
             .addData("worker.execute.count", workerExecution.getTotalInvocations())
@@ -104,18 +110,32 @@ public class HazelcastTransactionalConsumer<T> implements MetricAspect {
       }
 
       transactionContext.commitTransaction();
+      bulkAcceptedCount.increment();
+      consecutiveErrors.set(0); // Reset on every successfully processed batch.
+
       itemSubmitCount.add(items.size());
       return items.size();
     } catch (ConsumerGaveUpException e) {
       transactionContext.rollbackTransaction(); // make sure rollback to let other threads handle the data
+      bulkRejectedCount.increment();
+
+      LOG.info(e, "Consumer gave up, shutting down worker thread");
       throw e;
     } catch (Exception e) {
       transactionContext.rollbackTransaction(); // make sure rollback to let other threads handle the data
+      bulkRejectedCount.increment();
+
+      LOG.error(e, "An exception was thrown when consuming batch");
+      if (consecutiveErrors.incrementAndGet() > permittedConsecutiveErrors) {
+        // Only increment failed count if the threshold for permitted errors has been exceeded.
+        bulkFailedCount.increment();
+      }
+
       if (!keepThreadAliveOnException) {
+        LOG.info("Shutting down worker thread");
         throw e;  // exception happens which leads thread to stop
       }
-      bulkFailedCount.increment();
-      LOG.error(e, "An exception was thrown when consuming batch");
+
       return 0;
     }
   }
@@ -180,4 +200,8 @@ public class HazelcastTransactionalConsumer<T> implements MetricAspect {
     return this;
   }
 
+  public HazelcastTransactionalConsumer<T> setPermittedConsecutiveErrors(long permittedConsecutiveErrors) {
+    this.permittedConsecutiveErrors = permittedConsecutiveErrors;
+    return this;
+  }
 }

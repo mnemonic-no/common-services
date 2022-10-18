@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
@@ -40,7 +41,8 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
   private static final long DEFAULT_HAZELCAST_QUEUE_OFFER_TIMEOUT_SEC = 10;
   private static final long DEFAULT_HZ_TRANSACTION_TIMEOUT_SEC = TimeUnit.MINUTES.toSeconds(2L);
   private static final int CONSUMER_POLL_TIMEOUT_MILLIS = 1000;
-  private static final boolean DEFAULT_HAZELCAST_KEEP_THREAD_ALIVE_ON_EXCEPTION = false;
+  private static final boolean DEFAULT_HAZELCAST_KEEP_THREAD_ALIVE_ON_EXCEPTION = true;
+  private static final int DEFAULT_PERMITTED_CONSECUTIVE_ERRORS = 3;
 
   @Dependency
   private final DocumentSource<T> source;
@@ -51,13 +53,20 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
   private long hazelcastQueueOfferTimeoutSec = DEFAULT_HAZELCAST_QUEUE_OFFER_TIMEOUT_SEC;
   private long hazelcastTransactionTimeoutSec = DEFAULT_HZ_TRANSACTION_TIMEOUT_SEC;
   private boolean keepThreadAliveOnException = DEFAULT_HAZELCAST_KEEP_THREAD_ALIVE_ON_EXCEPTION;
+  private long permittedConsecutiveErrors = DEFAULT_PERMITTED_CONSECUTIVE_ERRORS;
 
   // monitors
   private final AtomicBoolean alive = new AtomicBoolean();
   private final LongAdder documentReceivedCount = new LongAdder();
   private final LongAdder offeredEventsCount = new LongAdder();
   private final LongAdder queueOfferMonitor = new LongAdder();
-  private final LongAdder queueOfferFailedCount = new LongAdder();
+  private final LongAdder queueOfferTimeoutCount = new LongAdder();
+  private final LongAdder bulkAcceptedCount = new LongAdder();
+  private final LongAdder bulkRejectedCount = new LongAdder();
+  private final LongAdder bulkFailedCount = new LongAdder();
+
+  // Used to keep track whether failed_count should be reported.
+  private final AtomicLong consecutiveErrors = new AtomicLong();
 
   public KafkaToHazelcastHandler(
           DocumentSource<T> source,
@@ -92,8 +101,11 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
     metrics.addData("hazelcast.queue.size", hazelcastInstance.getQueue(hazelcastQueueName).size());
     metrics.addData("document.received.count", documentReceivedCount);
     metrics.addData("queue.offer.success.count", offeredEventsCount);
-    metrics.addData("queue.offer.failed.count", queueOfferFailedCount);
+    metrics.addData("queue.offer.timeout.count", queueOfferTimeoutCount);
     metrics.addData("queue.offer.spent.ms", queueOfferMonitor);
+    metrics.addData("bulk.accepted.count", bulkAcceptedCount);
+    metrics.addData("bulk.rejected.count", bulkRejectedCount);
+    metrics.addData("bulk.failed.count", bulkFailedCount);
     return metrics;
   }
 
@@ -105,7 +117,7 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
 
       if (!queue.offer(document, hazelcastQueueOfferTimeoutSec, TimeUnit.SECONDS)) {
         LOGGER.error(String.format("Fail to offer to Hazelcast queue %s after %ds", hazelcastQueueName, hazelcastQueueOfferTimeoutSec));
-        queueOfferFailedCount.increment();
+        queueOfferTimeoutCount.increment();
         // throw out to stop Kafka consumer thread, which may be retried
         throw new TransactionTimeoutException(String.format("Fail to offer to Hazelcast queue %s after %ds", hazelcastQueueName, hazelcastQueueOfferTimeoutSec));
       }
@@ -115,7 +127,7 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
 
     } catch (InterruptedException e) {
       LOGGER.error(String.format("Interrupted when offer event to Hazelcast queue %s", hazelcastQueueName));
-      queueOfferFailedCount.increment();
+      queueOfferTimeoutCount.increment();
       // throw out to stop Kafka consumer thread, which may be retried
       Thread.currentThread().interrupt();
       throw new TransactionTimeoutException(String.format("Interrupted when offer event to Hazelcast queue %s", hazelcastQueueName), e);
@@ -138,6 +150,11 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
 
   public KafkaToHazelcastHandler<T> setKeepThreadAliveOnException(boolean keepThreadAliveOnException) {
     this.keepThreadAliveOnException = keepThreadAliveOnException;
+    return this;
+  }
+
+  public KafkaToHazelcastHandler<T> setPermittedConsecutiveErrors(long permittedConsecutiveErrors) {
+    this.permittedConsecutiveErrors = permittedConsecutiveErrors;
     return this;
   }
 
@@ -180,16 +197,25 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
         }
         transactionContext.commitTransaction();
         batch.acknowledge();
+        bulkAcceptedCount.increment();
+        consecutiveErrors.set(0); // Reset on every successfully processed batch.
       } catch (TransactionTimeoutException e) {
         transactionContext.rollbackTransaction();
         batch.reject();
+        bulkRejectedCount.increment();
 
         LOGGER.warning(e, "Timed out when offering records to Hazelcast queue");
       } catch (Exception e) {
         transactionContext.rollbackTransaction();
         batch.reject();
+        bulkRejectedCount.increment();
 
         LOGGER.error(e, "Caught unexpected exception when offering records to Hazelcast queue");
+        if (consecutiveErrors.incrementAndGet() > permittedConsecutiveErrors) {
+          // Only increment failed_count if the threshold for permitted errors has been exceeded.
+          bulkFailedCount.increment();
+        }
+
         if (!keepThreadAliveOnException) {
           LOGGER.info("Shutting down worker thread");
           alive.set(false);

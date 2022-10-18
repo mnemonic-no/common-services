@@ -1,6 +1,7 @@
 package no.mnemonic.services.common.hazelcast.consumer;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.core.IQueue;
 import com.hazelcast.core.TransactionalQueue;
 import com.hazelcast.transaction.TransactionContext;
 import no.mnemonic.commons.utilities.collections.ListUtils;
@@ -15,9 +16,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,6 +30,8 @@ public class KafkaToHazelcastHandlerTest {
   @Mock
   private TransactionalQueue<Object> transactionalQueue;
   @Mock
+  private IQueue<Object> queue;
+  @Mock
   private HazelcastInstance hazelcastInstance;
   @Mock
   private KafkaDocumentBatch<String> batch;
@@ -42,6 +43,7 @@ public class KafkaToHazelcastHandlerTest {
   public void setup() throws InterruptedException {
     when(hazelcastInstance.newTransactionContext(any())).thenReturn(transactionContext);
     when(transactionContext.getQueue(any())).thenReturn(transactionalQueue);
+    when(hazelcastInstance.getQueue(any())).thenReturn(queue);
     when(source.poll(any())).thenReturn(batch);
     when(batch.getDocuments()).thenReturn(ListUtils.list(document));
     when(transactionalQueue.offer(any(), anyLong(), any())).thenReturn(true);
@@ -85,5 +87,36 @@ public class KafkaToHazelcastHandlerTest {
     verify(transactionContext).rollbackTransaction();
     verify(batch).reject();
     assertTrue(handler.isAlive());
+  }
+
+  @Test
+  public void documentReceivedWithErrorThreshold() throws Exception {
+    handler.setPermittedConsecutiveErrors(1);
+    when(transactionalQueue.offer(any(), anyLong(), any()))
+            .thenThrow(RuntimeException.class)
+            .thenThrow(RuntimeException.class)
+            .thenReturn(true)
+            .thenThrow(RuntimeException.class)
+            .thenThrow(RuntimeException.class);
+
+    // Below threshold, ignore error
+    assertDoesNotThrow(() -> handler.runSingle());
+    assertEquals(0, handler.getMetrics().getData("bulk.failed.count").intValue());
+
+    // Above threshold, report error
+    assertDoesNotThrow(() -> handler.runSingle());
+    assertEquals(1, handler.getMetrics().getData("bulk.failed.count").intValue());
+
+    // Resets error state
+    assertDoesNotThrow(() -> handler.runSingle());
+    assertEquals(1, handler.getMetrics().getData("bulk.failed.count").intValue());
+
+    // Below threshold, ignore error
+    assertDoesNotThrow(() -> handler.runSingle());
+    assertEquals(1, handler.getMetrics().getData("bulk.failed.count").intValue());
+
+    // Above threshold, report error
+    assertDoesNotThrow(() -> handler.runSingle());
+    assertEquals(2, handler.getMetrics().getData("bulk.failed.count").intValue());
   }
 }

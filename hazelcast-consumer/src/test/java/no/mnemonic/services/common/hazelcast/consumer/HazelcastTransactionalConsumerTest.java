@@ -81,6 +81,7 @@ public class HazelcastTransactionalConsumerTest {
     when(txHazelcastQueue.poll(anyLong(), any())).thenReturn("testvalue");
     doThrow(new IOException()).when(transactionalConsumer).consume(any());
 
+    handler.setKeepThreadAliveOnException(false);
     assertThrows(IOException.class, () -> handler.consumeNextBatch(transactionalConsumer));
 
     verify(transactionContext, times(1)).rollbackTransaction();
@@ -128,4 +129,36 @@ public class HazelcastTransactionalConsumerTest {
     assertFalse(consumerCalled.get());
   }
 
+  @Test
+  public void txRollbackWithErrorThreshold() throws Exception {
+    when(txHazelcastQueue.poll(anyLong(), any())).thenReturn("testvalue");
+    doThrow(new IOException())
+            .doThrow(new IOException())
+            .doNothing()
+            .doThrow(new IOException())
+            .doThrow(new IOException())
+            .when(transactionalConsumer).consume(any());
+
+    handler.setPermittedConsecutiveErrors(1);
+
+    // Below threshold, ignore error
+    assertDoesNotThrow(() -> handler.consumeNextBatch(transactionalConsumer));
+    assertEquals(0, handler.getMetrics().getData("bulk.failed.count").intValue());
+
+    // Above threshold, report error
+    assertDoesNotThrow(() -> handler.consumeNextBatch(transactionalConsumer));
+    assertEquals(1, handler.getMetrics().getData("bulk.failed.count").intValue());
+
+    // Resets error state
+    assertDoesNotThrow(() -> handler.consumeNextBatch(transactionalConsumer));
+    assertEquals(1, handler.getMetrics().getData("bulk.failed.count").intValue());
+
+    // Below threshold, ignore error
+    assertDoesNotThrow(() -> handler.consumeNextBatch(transactionalConsumer));
+    assertEquals(1, handler.getMetrics().getData("bulk.failed.count").intValue());
+
+    // Above threshold, report error
+    assertDoesNotThrow(() -> handler.consumeNextBatch(transactionalConsumer));
+    assertEquals(2, handler.getMetrics().getData("bulk.failed.count").intValue());
+  }
 }
