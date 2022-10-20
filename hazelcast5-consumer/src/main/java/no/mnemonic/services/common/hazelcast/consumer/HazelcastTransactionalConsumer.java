@@ -1,12 +1,16 @@
 package no.mnemonic.services.common.hazelcast.consumer;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.core.TransactionalQueue;
 import com.hazelcast.transaction.TransactionContext;
 import com.hazelcast.transaction.TransactionOptions;
+import com.hazelcast.transaction.TransactionalQueue;
 import no.mnemonic.commons.logging.Logger;
 import no.mnemonic.commons.logging.Logging;
-import no.mnemonic.commons.metrics.*;
+import no.mnemonic.commons.metrics.MetricAspect;
+import no.mnemonic.commons.metrics.MetricException;
+import no.mnemonic.commons.metrics.MetricsData;
+import no.mnemonic.commons.metrics.PerformanceMonitor;
+import no.mnemonic.commons.metrics.TimerContext;
 import no.mnemonic.commons.utilities.collections.CollectionUtils;
 import no.mnemonic.services.common.hazelcast.consumer.exception.ConsumerGaveUpException;
 
@@ -17,10 +21,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
-/**
- * @deprecated Use <code>hazelcast5-consumer</code> package instead
- */
-@Deprecated
 public class HazelcastTransactionalConsumer<T> implements MetricAspect {
 
   private static final Logger LOG = Logging.getLogger(HazelcastTransactionalConsumer.class);

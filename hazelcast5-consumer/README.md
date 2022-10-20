@@ -2,12 +2,8 @@
 
 ## Note
 
-**This package provides the same functionality as `no.mnemonic.services.common:hazelcast5-consumer`,
-but is still targeting legacy Hazelcast version 3.x**
-
-This package should be regarded as deprecated, and will be removed in the future.
-The `hazelcast5-consumer` package should work as a drop-in replacement for this package, 
-as long as the rest of the client code is updated to use Hazelcast 4 or 5.
+**This package provides the same functionality as `no.mnemonic.services.common:hazelcast-consumer`,
+only targeting Hazelcast 4 or 5**
 
 ## Description
 

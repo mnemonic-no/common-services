@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <artifactId>hazelcast-consumer</artifactId>
+  <artifactId>hazelcast5-consumer</artifactId>
 
-  <name>mnemonic common services - Hazelcast consumer</name>
-  <description>Implementation of a Kafka consumer using a Hazelcast queue as buffer</description>
+  <name>mnemonic common services - Hazelcast5 consumer</name>
+  <description>Implementation of a Kafka consumer using a Hazelcast 4 or 5 as buffer</description>
 
   <parent>
     <groupId>no.mnemonic.services.common</groupId>
@@ -47,7 +47,8 @@
     <dependency>
       <groupId>com.hazelcast</groupId>
       <artifactId>hazelcast</artifactId>
-      <version>${hazelcast3.version}</version>
+      <version>${hazelcast5.version}</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>javax.inject</groupId>

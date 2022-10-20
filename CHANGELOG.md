@@ -3,6 +3,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.41] - 2022.10.16
+### Added
+ARGUS-31391
+- Add new package `hazelcast5-consumer` which uses Hazelcast 4 or 5
+
+### Upgrade notes
+* Replace package `hazelcast-consumer` with `hazelcast-consumer5`
+* Update other client code to use Hazelcast 4 or 5
+
 ## [0.3.40] - 2022-10-18
 ### Changed
 ARGUS-31387

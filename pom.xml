@@ -46,7 +46,8 @@
 
     <!-- external dependencies -->
     <activemq.version>5.16.3</activemq.version>
-    <hazelcast.version>3.12.11</hazelcast.version>
+    <hazelcast3.version>3.12.11</hazelcast3.version>
+    <hazelcast5.version>5.1.4</hazelcast5.version>
     <javax.inject.version>1</javax.inject.version>
     <jaxb.version>2.3.3</jaxb.version>
     <junit.version>4.13.2</junit.version>
@@ -75,6 +76,7 @@
     <module>auth</module>
     <module>documentation</module>
     <module>hazelcast-consumer</module>
+    <module>hazelcast5-consumer</module>
     <module>service-api</module>
     <module>messagebus</module>
   </modules>

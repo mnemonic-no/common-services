@@ -23,10 +23,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static no.mnemonic.commons.utilities.ObjectUtils.ifNotNull;
 
-/**
- * @deprecated Use <code>hazelcast5-consumer</code> package instead
- */
-@Deprecated
 public class HazelcastTransactionalConsumerHandler<T> extends HazelcastTransactionalConsumer<T> implements LifecycleAspect, MetricAspect {
 
   private static final Logger LOG = Logging.getLogger(HazelcastTransactionalConsumerHandler.class);
