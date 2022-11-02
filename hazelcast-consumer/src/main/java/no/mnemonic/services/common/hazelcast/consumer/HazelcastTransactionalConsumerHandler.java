@@ -10,6 +10,7 @@ import no.mnemonic.commons.metrics.MetricException;
 import no.mnemonic.commons.metrics.MetricsData;
 
 import javax.inject.Provider;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.UUID;
@@ -33,11 +34,13 @@ public class HazelcastTransactionalConsumerHandler<T> extends HazelcastTransacti
 
   private static final int DEFAULT_WORKERS_COUNT = 1;
   private static final String CORRELATION_ID = "correlationID";
+  private static final Duration DEFAULT_TERMINATION_TIMEOUT = Duration.ofSeconds(10);
 
   @Dependency
   private final Provider<TransactionalConsumer<T>> consumerProvider;
 
   private int workerCount = DEFAULT_WORKERS_COUNT;
+  private Duration terminationTimeout = DEFAULT_TERMINATION_TIMEOUT;
 
   private final AtomicInteger runningWorkers = new AtomicInteger();
   private final AtomicBoolean running = new AtomicBoolean();
@@ -78,7 +81,7 @@ public class HazelcastTransactionalConsumerHandler<T> extends HazelcastTransacti
     workerPool.updateAndGet(p -> {
       try {
         p.shutdown();
-        p.awaitTermination(10, TimeUnit.SECONDS);
+        p.awaitTermination(terminationTimeout.getSeconds(), TimeUnit.SECONDS);
         return null;
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
@@ -140,6 +143,11 @@ public class HazelcastTransactionalConsumerHandler<T> extends HazelcastTransacti
 
   public HazelcastTransactionalConsumerHandler<T> setWorkerCount(int workerCount) {
     this.workerCount = workerCount;
+    return this;
+  }
+
+  public HazelcastTransactionalConsumerHandler<T> setTerminationTimeout(Duration terminationTimeout) {
+    this.terminationTimeout = terminationTimeout;
     return this;
   }
 

@@ -3,6 +3,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.42] - 2022.11.02
+### Changed
+ARGUS-31809
+- Made termination timeout configurable in `HazelcastTransactionalConsumerHandler`
+
 ## [0.3.41] - 2022.10.16
 ### Added
 ARGUS-31391
