@@ -3,7 +3,7 @@
   <groupId>no.mnemonic.services.common</groupId>
   <artifactId>parent</artifactId>
   <packaging>pom</packaging>
-  <version>0.3.42</version>
+  <version>0.3.43-SNAPSHOT</version>
 
   <name>mnemonic common services</name>
   <description>Reusable Java components for building scalable microservices</description>
@@ -85,7 +85,7 @@
     <connection>scm:git:git://github.com/mnemonic-no/common-services.git</connection>
     <developerConnection>scm:git:ssh://github.com:mnemonic-no/common-services.git</developerConnection>
     <url>https://github.com/mnemonic-no/common-services</url>
-    <tag>parent-0.3.42</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <build>
