@@ -119,11 +119,11 @@ public class HazelcastTransactionalConsumer<T> implements MetricAspect {
 
       itemSubmitCount.add(items.size());
       return items.size();
-    } catch (ConsumerGaveUpException e) {
+    } catch (ConsumerGaveUpException | InterruptedException e) {
       transactionContext.rollbackTransaction(); // make sure rollback to let other threads handle the data
       bulkRejectedCount.increment();
 
-      LOG.info(e, "Consumer gave up, shutting down worker thread");
+      LOG.info(e, "Shutting down worker thread");
       throw e;
     } catch (Exception e) {
       transactionContext.rollbackTransaction(); // make sure rollback to let other threads handle the data
@@ -136,7 +136,7 @@ public class HazelcastTransactionalConsumer<T> implements MetricAspect {
       }
 
       if (!keepThreadAliveOnException) {
-        LOG.info("Shutting down worker thread");
+        LOG.info(e, "Shutting down worker thread");
         throw e;  // exception happens which leads thread to stop
       }
 

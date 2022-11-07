@@ -66,7 +66,6 @@ public class KafkaToHazelcastHandlerTest {
     handler.runSingle();
     verify(transactionContext).rollbackTransaction();
     verify(batch).reject();
-    assertTrue(handler.isAlive());
   }
 
   @Test
@@ -76,7 +75,6 @@ public class KafkaToHazelcastHandlerTest {
     assertThrows(RuntimeException.class, () -> handler.runSingle());
     verify(transactionContext).rollbackTransaction();
     verify(batch).reject();
-    assertFalse(handler.isAlive());
   }
 
   @Test
@@ -86,7 +84,15 @@ public class KafkaToHazelcastHandlerTest {
     assertDoesNotThrow(() -> handler.runSingle());
     verify(transactionContext).rollbackTransaction();
     verify(batch).reject();
-    assertTrue(handler.isAlive());
+  }
+
+  @Test
+  public void documentReceivedOfferInterruptedExceptionKeepAliveTrue() throws Exception {
+    handler.setKeepThreadAliveOnException(true);
+    when(transactionalQueue.offer(any(), anyLong(), any())).thenThrow(InterruptedException.class);
+    assertThrows(InterruptedException.class, () -> handler.runSingle());
+    verify(transactionContext).rollbackTransaction();
+    verify(batch).reject();
   }
 
   @Test

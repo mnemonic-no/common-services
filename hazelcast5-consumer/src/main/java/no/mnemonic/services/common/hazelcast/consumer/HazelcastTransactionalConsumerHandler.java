@@ -115,7 +115,7 @@ public class HazelcastTransactionalConsumerHandler<T> extends HazelcastTransacti
       }
     } catch (Exception e) {
       // Catch all exceptions that fail the thread
-      LOG.error(e, "%s failed and stop that caused by: %s", Thread.currentThread().getName(), e.getMessage());
+      LOG.error(e, "Thread %s failed and stopped caused by: %s", Thread.currentThread().getName(), e.getMessage());
     } finally {
       LOG.info("%s finished", Thread.currentThread().getName());
       runningWorkers.decrementAndGet();

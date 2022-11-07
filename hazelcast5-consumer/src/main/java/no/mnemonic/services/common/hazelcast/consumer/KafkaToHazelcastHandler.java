@@ -8,11 +8,7 @@ import no.mnemonic.commons.component.Dependency;
 import no.mnemonic.commons.component.LifecycleAspect;
 import no.mnemonic.commons.logging.Logger;
 import no.mnemonic.commons.logging.Logging;
-import no.mnemonic.commons.metrics.MetricAspect;
-import no.mnemonic.commons.metrics.MetricException;
-import no.mnemonic.commons.metrics.Metrics;
-import no.mnemonic.commons.metrics.MetricsData;
-import no.mnemonic.commons.metrics.TimerContext;
+import no.mnemonic.commons.metrics.*;
 import no.mnemonic.commons.utilities.collections.CollectionUtils;
 import no.mnemonic.messaging.documentchannel.DocumentBatch;
 import no.mnemonic.messaging.documentchannel.DocumentSource;
@@ -113,7 +109,7 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
     return metrics;
   }
 
-  private void documentReceived(TransactionalQueue<T> queue, T document) throws TransactionTimeoutException {
+  private void documentReceived(TransactionalQueue<T> queue, T document) throws InterruptedException, TransactionTimeoutException {
 
     documentReceivedCount.increment();
 
@@ -128,13 +124,6 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
 
       // offer success
       offeredEventsCount.increment();
-
-    } catch (InterruptedException e) {
-      LOGGER.error(String.format("Interrupted when offer event to Hazelcast queue %s", hazelcastQueueName));
-      queueOfferTimeoutCount.increment();
-      // throw out to stop Kafka consumer thread, which may be retried
-      Thread.currentThread().interrupt();
-      throw new TransactionTimeoutException(String.format("Interrupted when offer event to Hazelcast queue %s", hazelcastQueueName), e);
     }
   }
 
@@ -163,8 +152,7 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
   }
 
   //for testing use only, to allow testing execution of a single run, without starting the Executor thread
-  void runSingle() {
-    alive.set(true);
+  void runSingle() throws InterruptedException {
     new KafkaWorker().processBatch();
   }
 
@@ -175,12 +163,15 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
         while (alive.get()) {
           processBatch();
         }
+      } catch (Exception e) {
+        // Catch all exceptions that fail the thread
+        LOGGER.error(e, "Thread %s failed and stopped caused by: %s", Thread.currentThread().getName(), e.getMessage());
       } finally {
         alive.set(false);
       }
     }
 
-    private void processBatch() {
+    private void processBatch() throws InterruptedException {
       DocumentBatch<T> batch = source.poll(Duration.ofMillis(CONSUMER_POLL_TIMEOUT_MILLIS));
       Collection<T> documents = batch.getDocuments();
       if (CollectionUtils.isEmpty(documents)) {
@@ -203,16 +194,17 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
         batch.acknowledge();
         bulkAcceptedCount.increment();
         consecutiveErrors.set(0); // Reset on every successfully processed batch.
+      } catch (InterruptedException e) {
+        rejectBatch(batch, transactionContext);
+
+        LOGGER.info(e, "Shutting down worker thread");
+        throw e;
       } catch (TransactionTimeoutException e) {
-        transactionContext.rollbackTransaction();
-        batch.reject();
-        bulkRejectedCount.increment();
+        rejectBatch(batch, transactionContext);
 
         LOGGER.warning(e, "Timed out when offering records to Hazelcast queue");
       } catch (Exception e) {
-        transactionContext.rollbackTransaction();
-        batch.reject();
-        bulkRejectedCount.increment();
+        rejectBatch(batch, transactionContext);
 
         LOGGER.error(e, "Caught unexpected exception when offering records to Hazelcast queue");
         if (consecutiveErrors.incrementAndGet() > permittedConsecutiveErrors) {
@@ -221,11 +213,16 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
         }
 
         if (!keepThreadAliveOnException) {
-          LOGGER.info("Shutting down worker thread");
-          alive.set(false);
+          LOGGER.info(e, "Shutting down worker thread");
           throw e;
         }
       }
+    }
+
+    private void rejectBatch(DocumentBatch<T> batch, TransactionContext transactionContext) {
+      transactionContext.rollbackTransaction();
+      batch.reject();
+      bulkRejectedCount.increment();
     }
   }
 

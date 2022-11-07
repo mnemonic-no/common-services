@@ -109,7 +109,7 @@ public class HazelcastTransactionalConsumerTest {
   }
 
   @Test
-  public void testRollbackTransactionAndGiveUpIfOptionIsSetAndConsumerGaveUp() throws IOException, InterruptedException, ConsumerGaveUpException {
+  public void testRollbackTransactionAndGiveUpIfOptionIsSetAndConsumerGaveUp() throws Exception {
     AtomicBoolean consumerCalled = new AtomicBoolean(false);
     when(txHazelcastQueue.poll(anyLong(), any())).thenReturn("testvalue");
     doThrow(new IOException())
@@ -127,6 +127,17 @@ public class HazelcastTransactionalConsumerTest {
     verify(transactionContext, times(2)).rollbackTransaction();
     verify(transactionContext, never()).commitTransaction();
     assertFalse(consumerCalled.get());
+  }
+
+  @Test
+  public void testRollbackTransactionAndGiveUpIfOptionIsSetAndWasInterrupted() throws Exception {
+    when(txHazelcastQueue.poll(anyLong(), any())).thenReturn("testvalue");
+    doThrow(new InterruptedException()).when(transactionalConsumer).consume(any());
+
+    handler.setKeepThreadAliveOnException(true);
+    assertThrows(InterruptedException.class, () -> handler.consumeNextBatch(transactionalConsumer));
+
+    verify(transactionContext).rollbackTransaction();
   }
 
   @Test

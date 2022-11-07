@@ -3,6 +3,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.43] - 2022.11.07
+### Fixed
+ARGUS-31871
+- Properly shut down worker threads on InterruptedException in Hazelcast consumer pipeline.
+
 ## [0.3.42] - 2022.11.02
 ### Changed
 ARGUS-31809
