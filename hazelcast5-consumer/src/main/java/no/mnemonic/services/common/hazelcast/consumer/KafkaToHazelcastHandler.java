@@ -131,6 +131,10 @@ public class KafkaToHazelcastHandler<T> implements LifecycleAspect, MetricAspect
     return alive.get();
   }
 
+  public int getQueueSize() {
+    return hazelcastInstance.getQueue(hazelcastQueueName).size();
+  }
+
   public KafkaToHazelcastHandler<T> setHazelcastQueueOfferTimeoutSec(long hazelcastQueueOfferTimeoutSec) {
     this.hazelcastQueueOfferTimeoutSec = hazelcastQueueOfferTimeoutSec;
     return this;
