@@ -50,6 +50,8 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
   private AtomicLong keepAlive = new AtomicLong();
   private ExecutorService executor = Executors.newCachedThreadPool();
 
+  ServiceMessageHandler handler;
+
   @Before
   public void setup() {
     MockitoAnnotations.initMocks(this);
@@ -74,6 +76,8 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
     });
     doAnswer(i -> endOfStream.complete(null)).when(signalContext).endOfStream();
     doAnswer(i -> error.complete(i.getArgument(0))).when(signalContext).notifyError(any());
+
+    handler  = createHandler();
   }
 
   @After
@@ -83,7 +87,6 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
 
   @Test
   public void testRequestInvokesPrimitiveArgumentMethod() throws InterruptedException, ExecutionException, TimeoutException {
-    ServiceMessageHandler handler = createHandler();
     ServiceRequestMessage req = createRequest(METHOD_PRIMITIVE_LONG_ARGUMENT)
             .setArgumentTypes(new String[]{Long.TYPE.getName()})
             .setArguments(new Object[]{1L})
@@ -140,6 +143,23 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
   public void testSingleValueResponse() throws InterruptedException, ExecutionException, TimeoutException {
     sendSignal(METHOD_GET_STRING);
     endOfStream.get(100, TimeUnit.MILLISECONDS);
+  }
+
+  @Test
+  public void testAbortOngoingCall() throws InterruptedException, ExecutionException, TimeoutException {
+    CountDownLatch invokeLatch = new CountDownLatch(1);
+    CountDownLatch closeLatch = new CountDownLatch(1);
+    when(testService.getString(any())).thenAnswer(i->{
+      invokeLatch.countDown();
+      closeLatch.await(10, TimeUnit.SECONDS);
+      return "result";
+    });
+    Future<RequestContext> requestFuture = sendSignal(METHOD_GET_STRING);
+    //wait until invocation is in progress before aborting
+    invokeLatch.await(1, TimeUnit.SECONDS);
+    handler.abort("callid");
+    //expect execution to stop immediately due to abort (if not aborted, this will time out since testService is waiting for closeLatch
+    requestFuture.get(1, TimeUnit.SECONDS);
   }
 
   @Test
@@ -238,7 +258,6 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
   //helpers
 
   private Future<RequestContext> sendSignal(String method) {
-    ServiceMessageHandler handler = createHandler();
     ServiceRequestMessage req = createRequest(method).build();
     return executor.submit(() ->
             handler.signal(req, signalContext, 1000)

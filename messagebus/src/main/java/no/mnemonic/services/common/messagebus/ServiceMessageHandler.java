@@ -21,14 +21,8 @@ import no.mnemonic.services.common.api.annotations.ResultBatchSize;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.Clock;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.LongAdder;
 
 public class ServiceMessageHandler implements RequestSink, LifecycleAspect, MetricAspect {
@@ -51,6 +45,8 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   private final int keepAliveMultiplier;
   private final long shutdownWait;
   private ExecutorService executor;
+
+  private final Map<String, Future> callMap = new ConcurrentHashMap<>();
 
   //metrics
   private final LongAdder ignoredRequests = new LongAdder();
@@ -134,17 +130,18 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
       ignoredRequests.increment();
       return signalContext;
     }
+    ServiceRequestMessage request = (ServiceRequestMessage) msg;
 
     receivedRequests.increment();
     pendingRequests.increment();
 
     try (TimerContext ignored = TimerContext.timerMillis(handlingTime::add)) {
-      ServiceRequestMessage request = (ServiceRequestMessage) msg;
       if (LOGGER.isDebug()) {
         LOGGER.debug("<< signal [callID=%s service=%s method=%s]", request.getRequestID(), request.getServiceName(), request.getMethodName());
       }
       //execute actual method invocation in separate thread
       Future<?> future = executor.submit(() -> handleRequest(request, signalContext));
+      callMap.put(request.getCallID(), future);
 
       //initial keepalive
       sendKeepAlive(signalContext, request.getRequestID());
@@ -157,9 +154,22 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
           future.cancel(true);
         }
       }
+    } finally {
       //when future is resolved, the handler is done, so we can return
+      callMap.remove(request.getCallID());
     }
     return signalContext;
+  }
+
+  @Override
+  public void abort(String callID) {
+    Future future = callMap.get(callID);
+    if (future == null) {
+      LOGGER.info("Dropping abort of callID=%s, no such ongoing call", callID);
+      return;
+    }
+    LOGGER.info("Aborting future of callID=%s", callID);
+    future.cancel(true);
   }
 
   //private methods

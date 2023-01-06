@@ -3,6 +3,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.45] - 2023.01.04
+### Changed
+ARGUS-32839
+- Ensure ServiceMessageClient will invoke `RequestHandler.close()` when thread is interrupted.
+- Ensure ServiceMessageHandler cancels/interrupts ongoing call future when receiving `abort()` 
+
 ## [0.3.44] - 2022.11.15
 ### Added
 ARGUS-32084

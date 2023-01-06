@@ -4,6 +4,7 @@ import no.mnemonic.commons.logging.Logger;
 import no.mnemonic.commons.logging.Logging;
 import no.mnemonic.commons.metrics.*;
 import no.mnemonic.messaging.requestsink.Message;
+import no.mnemonic.messaging.requestsink.MessagingInterruptedException;
 import no.mnemonic.messaging.requestsink.RequestHandler;
 import no.mnemonic.messaging.requestsink.RequestSink;
 import no.mnemonic.services.common.api.ResultSet;
@@ -87,7 +88,11 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
    * @param defaultPriority   the default priority to use when sending request messages
    * @param extenderFunctions functions to extend resultset return types to subclasses, where subclasses are declared
    */
-  private ServiceMessageClient(Class<T> proxyInterface, RequestSink requestSink, long maxWait, ServiceContext.Priority defaultPriority, Map<Class<?>, Function<ResultSet, ? extends ResultSet>> extenderFunctions) {
+  private ServiceMessageClient(Class<T> proxyInterface,
+                               RequestSink requestSink,
+                               long maxWait,
+                               ServiceContext.Priority defaultPriority,
+                               Map<Class<?>, Function<ResultSet, ? extends ResultSet>> extenderFunctions) {
     this.maxWait = maxWait;
     this.proxyInterface = proxyInterface;
     this.requestSink = requestSink;
@@ -246,6 +251,10 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     } catch (InvocationTargetException e) {
       //if we receive error notification from handler, getNextResponse will throw the error
       throw e.getTargetException();
+    } catch (MessagingInterruptedException e) {
+      //abort request when interrupted
+      handler.abort();
+      throw new InterruptedException(e.getMessage());
     }
     //if we received no response at all by the timeout limit, this is a service timeout
     if (response == null) {
@@ -268,14 +277,17 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     if (declaredReturnType.equals(ResultSet.class)) {
       //create streaming resultset context, counting all RequestHandler errors
       //noinspection unchecked
-      return (R)new StreamingResultSetContext(handler, error -> errors.increment());
+      return (R)new StreamingResultSetContext<R>(handler, error -> {
+        errors.increment();
+        handler.abort();
+      });
     } else {
       //if the declared method returns a subclass of ResultSet, we may need an extender function to
       //extend the declared return type to the correct subclass
       Function<ResultSet, ? extends ResultSet> extender = extenderFunctions.computeIfAbsent(declaredReturnType, this::resolveExtenderFunction);
       //convert streaming resultset using extender function
       //noinspection unchecked
-      return (R) extender.apply(new StreamingResultSetContext(handler, error -> errors.increment()));
+      return (R) extender.apply(new StreamingResultSetContext<R>(handler, error -> errors.increment()));
     }
   }
 
@@ -285,8 +297,8 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
       throw new IllegalStateException("Declared returntype of invoked method is a subclass of ResultSet, but no extender function is defined for this type: " + declaredReturnType);
     }
     try {
-      return resultSetExtention.extender().newInstance();
-    } catch (InstantiationException | IllegalAccessException e) {
+      return resultSetExtention.extender().getDeclaredConstructor().newInstance();
+    } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
       throw new IllegalStateException("Declared resultset extention function could not be instantiated: " + resultSetExtention.extender(), e);
     }
   }
