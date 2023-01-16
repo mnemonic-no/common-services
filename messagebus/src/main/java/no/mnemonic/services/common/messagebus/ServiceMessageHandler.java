@@ -272,33 +272,38 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
   }
 
   private void handleResultSet(String requestID, Method method, ResultSet resultSet, RequestContext signalContext) {
-    ServiceStreamingResultSetResponseMessage.Builder builder = ServiceStreamingResultSetResponseMessage.builder()
-            .setRequestID(requestID)
-            .setCount(resultSet.getCount())
-            .setLimit(resultSet.getLimit())
-            .setOffset(resultSet.getOffset());
+    try {
+      ServiceStreamingResultSetResponseMessage.Builder builder = ServiceStreamingResultSetResponseMessage.builder()
+              .setRequestID(requestID)
+              .setCount(resultSet.getCount())
+              .setLimit(resultSet.getLimit())
+              .setOffset(resultSet.getOffset());
 
-    int methodBatchSize = determineBatchSize(method);
-    int batchIndex = 0;
-    Collection<Object> batch = new ArrayList<>();
+      int methodBatchSize = determineBatchSize(method);
+      int batchIndex = 0;
+      Collection<Object> batch = new ArrayList<>();
 
-    for (Object o : resultSet) {
-      if (batch.size() >= methodBatchSize) {
-        resultSetBatches.increment();
-        if (LOGGER.isDebug()) {
-          LOGGER.debug(">> addResponseBatch [callID=%s idx=%d size=%d]", requestID, batchIndex, batch.size());
+      for (Object o : resultSet) {
+        if (batch.size() >= methodBatchSize) {
+          resultSetBatches.increment();
+          if (LOGGER.isDebug()) {
+            LOGGER.debug(">> addResponseBatch [callID=%s idx=%d size=%d]", requestID, batchIndex, batch.size());
+          }
+          signalContext.addResponse(builder.build(batchIndex++, batch));
+          batch = new ArrayList<>();
         }
-        signalContext.addResponse(builder.build(batchIndex++, batch));
-        batch = new ArrayList<>();
+        batch.add(o);
       }
-      batch.add(o);
+      //final batch
+      //noinspection UnusedAssignment
+      if (LOGGER.isDebug()) {
+        LOGGER.debug(">> addResponseBatch [callID=%s idx=%d size=%d last=true]", requestID, batchIndex, batch.size());
+      }
+      signalContext.addResponse(builder.build(batchIndex, batch, true));
+    } finally {
+      //ensure resultset is closed
+      resultSet.close();
     }
-    //final batch
-    //noinspection UnusedAssignment
-    if (LOGGER.isDebug()) {
-      LOGGER.debug(">> addResponseBatch [callID=%s idx=%d size=%d last=true]", requestID, batchIndex, batch.size());
-    }
-    signalContext.addResponse(builder.build(batchIndex, batch, true));
   }
 
   private int determineBatchSize(Method method) {
