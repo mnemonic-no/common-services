@@ -3,6 +3,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.47] - 2023.02.27
+### Changed
+ARGUS-32473
+- Made project build with JDK17 (failed on javadoc generation).
+- Upgraded dependencies to the newest minor/bugfix versions.
+- Swapped `javax.inject` artefact to Jakarta.
+
 ## [0.3.46] - 2023.01.16
 ### Changed
 ARGUS-33344

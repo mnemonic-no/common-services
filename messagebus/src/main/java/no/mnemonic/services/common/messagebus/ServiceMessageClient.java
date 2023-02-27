@@ -33,13 +33,15 @@ import static no.mnemonic.services.common.messagebus.ServiceContext.Priority.sta
  * proxies requests across a RequestSink infrastructure.
  * <p>
  * This requires a requestSink which is attached to a ServiceMessageHandler on the other end.
- *
- * <h3>Sending a request</h3>
+ * <p>
+ * <b>Sending a request</b>
+ * <p>
  * The ServiceMessageClient&lt;SERVICE&gt; exposes the interface SERVICE using <code>getInstance()</code>.
  * Invoking any method on the <code>SERVICE</code> instance will send a request message.
  * The current thread will block until the response is received and returned, or until timeout.
- *
- * <h3>Prioritizing requests</h3>
+ * <p>
+ * <b>Prioritizing requests</b>
+ * <p>
  * To prioritize requests, the client can choose between three approaches:
  * <ol>
  *   <li>Change the <code>defaultPriority</code> of this ServiceMessageClient</li>
