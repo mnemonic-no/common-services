@@ -168,7 +168,6 @@ class ServiceMessageClientTest {
     TestService service = client.getInstance();
     assertEquals("value", service.getString("arg"));
     assertEquals(1L, client.getMetrics().getData("requests").longValue());
-    assertEquals(0L, client.getMetrics().getData("errors").longValue());
   }
 
   @Test
@@ -176,11 +175,11 @@ class ServiceMessageClientTest {
     ServiceMessageClient<TestService> client = ServiceMessageClient.builder(TestService.class).setMaxWait(100).setRequestSink(requestSink).build();
     TestService service = client.getInstance();
     assertFalse(LambdaUtils.tryTo(() -> service.getString("arg")));
-    assertEquals(1L, client.getMetrics().getData("errors").longValue());
+    assertEquals(1L, client.getMetrics().getData("serviceTimeOuts").longValue());
   }
 
   @Test
-  void testErrorMetricsOnStreamTimeout() throws InterruptedException, ExecutionException, TimeoutException, MetricException {
+  void testErrorMetricsOnStreamInterrupted() throws InterruptedException, ExecutionException, TimeoutException, MetricException {
     ServiceMessageClient<TestService> client = ServiceMessageClient.builder(TestService.class).setMaxWait(500).setRequestSink(requestSink).build();
     Future<RequestContext> ctxref = mockResultSetResponse();
     //invoke a resultset
@@ -192,7 +191,7 @@ class ServiceMessageClientTest {
     //verify that we got an error when iterating the stream (due to timeout)
     assertFalse(LambdaUtils.tryTo(() -> ListUtils.list(rs.iterator())));
     //verify that the error was counted correctly
-    assertEquals(1L, client.getMetrics().getData("errors").longValue());
+    assertEquals(1L, client.getMetrics().getData("streamingInterrupted").longValue());
   }
 
   @Test

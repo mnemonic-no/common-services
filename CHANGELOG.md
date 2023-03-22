@@ -3,6 +3,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.49] - 2023-03-22
+### Changed
+ARGUS-35165
+- Renamed generic "errors" metric in ServiceMessageClient to "streamingInterrupted" to clearly indicate the purpose.
+
 ## [0.3.48] - 2023-03-03
 ### Fixed
 ARGUS-33367

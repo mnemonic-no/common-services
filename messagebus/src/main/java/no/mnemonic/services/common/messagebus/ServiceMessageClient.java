@@ -8,6 +8,7 @@ import no.mnemonic.messaging.requestsink.MessagingInterruptedException;
 import no.mnemonic.messaging.requestsink.RequestHandler;
 import no.mnemonic.messaging.requestsink.RequestSink;
 import no.mnemonic.services.common.api.ResultSet;
+import no.mnemonic.services.common.api.ResultSetStreamInterruptedException;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.ServiceTimeOutException;
 import no.mnemonic.services.common.api.annotations.ResultSetExtention;
@@ -76,7 +77,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
   //metrics
 
   private final LongAdder requests = new LongAdder();
-  private final LongAdder errors = new LongAdder();
+  private final LongAdder streamingInterrupted = new LongAdder();
   private final LongAdder totalRequestTime = new LongAdder();
   private final LongAdder serviceTimeOuts = new LongAdder();
 
@@ -108,7 +109,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
   public Metrics getMetrics() throws MetricException {
     return new MetricsData()
             .addData("requests", requests)
-            .addData("errors", errors)
+            .addData("streamingInterrupted", streamingInterrupted)
             .addData("serviceTimeOuts", serviceTimeOuts)
             .addData("totalRequestTime", totalRequestTime);
   }
@@ -238,6 +239,9 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
       } catch (ServiceTimeOutException ex) {
         serviceTimeOuts.increment();
         throw ex;
+      } catch (ResultSetStreamInterruptedException ex) {
+        streamingInterrupted.increment();
+        throw ex;
       }
     } else {
       //else the handler will return a single response
@@ -260,7 +264,6 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     }
     //if we received no response at all by the timeout limit, this is a service timeout
     if (response == null) {
-      errors.increment();
       handler.timeout();
       if (LOGGER.isDebug()) {
         LOGGER.debug("<< timeout");
@@ -280,7 +283,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
       //create streaming resultset context, counting all RequestHandler errors
       //noinspection unchecked
       return (R)new StreamingResultSetContext<R>(handler, error -> {
-        errors.increment();
+        streamingInterrupted.increment();
         handler.abort();
       });
     } else {
@@ -289,7 +292,10 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
       Function<ResultSet, ? extends ResultSet> extender = extenderFunctions.computeIfAbsent(declaredReturnType, this::resolveExtenderFunction);
       //convert streaming resultset using extender function
       //noinspection unchecked
-      return (R) extender.apply(new StreamingResultSetContext<R>(handler, error -> errors.increment()));
+      return (R) extender.apply(new StreamingResultSetContext<R>(handler, error -> {
+        streamingInterrupted.increment();
+        handler.abort();
+      }));
     }
   }
 
