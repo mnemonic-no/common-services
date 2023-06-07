@@ -8,12 +8,9 @@ import no.mnemonic.services.common.api.ResultSetStreamInterruptedException;
 import no.mnemonic.services.common.api.ServiceTimeOutException;
 
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.UndeclaredThrowableException;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -39,13 +36,14 @@ public class StreamingResultSetContext<T> implements ResultSet<T> {
   private final Map<Integer, ServiceStreamingResultSetResponseMessage> waitingBatches = new HashMap<>();
 
   /**
-   *
-   * @param handler the requesthandler which is controlling the request
+   * @param handler       the requesthandler which is controlling the request
+   * @param invokedMethod the invoked method
    * @throws Throwable any exception thrown by the invoked method can be thrown here.
    */
-  StreamingResultSetContext(RequestHandler handler, Consumer<Throwable> onError) throws Throwable {
+  StreamingResultSetContext(RequestHandler handler, Method invokedMethod, Consumer<Throwable> onError) throws Throwable {
     if (handler == null) throw new IllegalArgumentException("Handler is null");
     if (onError == null) throw new IllegalArgumentException("Error consumer is null");
+    if (invokedMethod == null) throw new IllegalArgumentException("invokedMethod is null");
     this.handler = handler;
     this.onError = onError;
     ServiceStreamingResultSetResponseMessage initialBatch;
@@ -56,7 +54,11 @@ public class StreamingResultSetContext<T> implements ResultSet<T> {
       if (initialBatch == null) {
         //notify timeout
         handler.timeout();
-        throw new ServiceTimeOutException("Initial resultset not received");
+        LOGGER.error("ServiceTimeoutException while waiting for initial resultset for method %s", invokedMethod);
+        throw new ServiceTimeOutException(
+            String.format("Initial resultset not received for method %s", invokedMethod),
+            invokedMethod.getDeclaringClass().getName()
+        );
       }
     } catch (InvocationTargetException e) {
       throw e.getTargetException();

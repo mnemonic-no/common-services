@@ -4,18 +4,14 @@ public class ServiceTimeOutException extends RuntimeException {
 
   private static final long serialVersionUID = 3330507181521367099L;
 
-  public ServiceTimeOutException() {
-  }
+  private final String interfaceClassName;
 
-  public ServiceTimeOutException(String message) {
+  public ServiceTimeOutException(String message, String interfaceClassName) {
     super(message);
+    this.interfaceClassName = interfaceClassName;
   }
 
-  public ServiceTimeOutException(String message, Throwable cause) {
-    super(message, cause);
-  }
-
-  public ServiceTimeOutException(Throwable cause) {
-    super(cause);
+  public String getInterfaceClassName() {
+    return interfaceClassName;
   }
 }

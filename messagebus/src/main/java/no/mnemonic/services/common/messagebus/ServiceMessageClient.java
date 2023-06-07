@@ -202,7 +202,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
           LOGGER.debug(">> signal [callID=%s service=%s method=%s]", msg.getRequestID(), msg.getServiceName(), msg.getMethodName());
         }
         RequestHandler handler = RequestHandler.signal(requestSink, msg, true, maxWait);
-        return handleResponses(handler, method.getReturnType());
+        return handleResponses(handler, method);
       }
     }
 
@@ -230,12 +230,12 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     }
   }
 
-  private Object handleResponses(RequestHandler handler, Class<?> declaredReturnType) throws Throwable {
-    if (ResultSet.class.isAssignableFrom(declaredReturnType)) {
+  private Object handleResponses(RequestHandler handler, Method invokedMethod) throws Throwable {
+    if (ResultSet.class.isAssignableFrom(invokedMethod.getReturnType())) {
       //if method returns a ResultSet, the handler will send a streaming response
       //noinspection unchecked
       try {
-        return handleStreamingResponse(handler, (Class<ResultSet>) declaredReturnType);
+        return handleStreamingResponse(handler, invokedMethod);
       } catch (ServiceTimeOutException ex) {
         serviceTimeOuts.increment();
         throw ex;
@@ -245,11 +245,11 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
       }
     } else {
       //else the handler will return a single response
-      return handleValueResponse(handler);
+      return handleValueResponse(handler, invokedMethod);
     }
   }
 
-  private Object handleValueResponse(RequestHandler handler) throws Throwable {
+  private Object handleValueResponse(RequestHandler handler, Method invokedMethod) throws Throwable {
     ServiceResponseMessage response;
     try {
       //wait until response is received, or stream is closed
@@ -269,7 +269,11 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
         LOGGER.debug("<< timeout");
       }
       serviceTimeOuts.increment();
-      throw new ServiceTimeOutException();
+      LOGGER.error("ServiceTimeoutException while invoking %s", invokedMethod);
+      throw new ServiceTimeOutException(
+          String.format("ServiceTimeoutException while waiting for responses for %s", invokedMethod),
+          proxyInterface.getName()
+      );
     }
     if (LOGGER.isDebug()) {
       LOGGER.debug("<< valueResponse [callID=%s]", response.getCallID());
@@ -278,21 +282,21 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     return ((ServiceResponseValueMessage) response).getReturnValue();
   }
 
-  private <R extends ResultSet> R handleStreamingResponse(RequestHandler handler, Class<R> declaredReturnType) throws Throwable {
-    if (declaredReturnType.equals(ResultSet.class)) {
+  private <R extends ResultSet> R handleStreamingResponse(RequestHandler handler, Method invokedMethod) throws Throwable {
+    if (invokedMethod.getReturnType().equals(ResultSet.class)) {
       //create streaming resultset context, counting all RequestHandler errors
       //noinspection unchecked
-      return (R)new StreamingResultSetContext<R>(handler, error -> {
+      return (R)new StreamingResultSetContext<R>(handler, invokedMethod, error -> {
         streamingInterrupted.increment();
         handler.abort();
       });
     } else {
       //if the declared method returns a subclass of ResultSet, we may need an extender function to
       //extend the declared return type to the correct subclass
-      Function<ResultSet, ? extends ResultSet> extender = extenderFunctions.computeIfAbsent(declaredReturnType, this::resolveExtenderFunction);
+      Function<ResultSet, ? extends ResultSet> extender = extenderFunctions.computeIfAbsent(invokedMethod.getReturnType(), this::resolveExtenderFunction);
       //convert streaming resultset using extender function
       //noinspection unchecked
-      return (R) extender.apply(new StreamingResultSetContext<R>(handler, error -> {
+      return (R) extender.apply(new StreamingResultSetContext<R>(handler, invokedMethod, error -> {
         streamingInterrupted.increment();
         handler.abort();
       }));
