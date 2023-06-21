@@ -1,0 +1,10 @@
+{
+  "projectName": "mnemonic common services",
+  "projectPage": "https://github.com/mnemonic-no/common-services",
+  "systemOwner": "joakim",
+  "repositoryOwner": "konstantin",
+  "language": "java",
+  "criticality": "critical",
+  "policyExceptions": [
+  ]
+}
