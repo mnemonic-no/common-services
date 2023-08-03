@@ -41,17 +41,17 @@
     <jdk.version>1.8</jdk.version>
 
     <!-- mnemonic dependencies -->
-    <mnemonic.commons.version>0.4.21</mnemonic.commons.version>
-    <mnemonic.messaging.version>1.3.25</mnemonic.messaging.version>
+    <mnemonic.commons.version>0.4.25</mnemonic.commons.version>
+    <mnemonic.messaging.version>1.3.35</mnemonic.messaging.version>
 
     <!-- external dependencies -->
-    <activemq.version>5.16.6</activemq.version>
+    <activemq.version>5.18.2</activemq.version>
     <hazelcast3.version>3.12.13</hazelcast3.version>
-    <hazelcast5.version>5.1.5</hazelcast5.version>
+    <hazelcast5.version>5.3.1</hazelcast5.version>
     <jakarta.inject.version>1.0.5</jakarta.inject.version>
     <jaxb.version>2.3.3</jaxb.version>
     <junit.version>4.13.2</junit.version>
-    <junit.jupiter.version>5.9.2</junit.jupiter.version>
+    <junit.jupiter.version>5.10.0</junit.jupiter.version>
     <mockito.version>4.11.0</mockito.version>
     <swagger.version>1.6.9</swagger.version>
 
@@ -231,7 +231,7 @@
           <includedLicenses>Apache 2|CDDL|Eclipse|ISC|MIT</includedLicenses>
           <!-- Consolidate license names. -->
           <licenseMerges>
-            <licenseMerge>Apache 2|ASF 2.0|Apache License 2.0|Apache Software License - Version 2.0|Apache License, Version 2.0|The Apache Software License, Version 2.0</licenseMerge>
+            <licenseMerge>Apache 2|Apache-2.0|ASF 2.0|Apache License 2.0|Apache Software License - Version 2.0|Apache License, Version 2.0|The Apache Software License, Version 2.0</licenseMerge>
             <licenseMerge>CDDL|CDDL 1.1|CDDL + GPLv2 with classpath exception</licenseMerge>
             <licenseMerge>Eclipse|Eclipse Public License 1.0|Eclipse Public License - Version 1.0|Eclipse Distribution License - v 1.0|Eclipse Public License v2.0</licenseMerge>
             <licenseMerge>MIT|The MIT License</licenseMerge>
