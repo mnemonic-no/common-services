@@ -21,8 +21,16 @@ import no.mnemonic.services.common.api.annotations.ResultBatchSize;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.Clock;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 
 public class ServiceMessageHandler implements RequestSink, LifecycleAspect, MetricAspect {
@@ -308,8 +316,16 @@ public class ServiceMessageHandler implements RequestSink, LifecycleAspect, Metr
 
   private int determineBatchSize(Method method) {
     ResultBatchSize batchSize = method.getAnnotation(ResultBatchSize.class);
-    if (batchSize == null) return this.batchSize;
-    return batchSize.value();
+    if (batchSize != null) return batchSize.value();
+    if (method.getDeclaringClass().getSuperclass() != null) {
+      try {
+        Method superMethod = method.getDeclaringClass().getSuperclass().getMethod(method.getName(), method.getParameterTypes());
+        return determineBatchSize(superMethod);
+      } catch (NoSuchMethodException e) {
+        return this.batchSize;
+      }
+    }
+    return this.batchSize;
   }
 
   @SuppressWarnings("WeakerAccess")
