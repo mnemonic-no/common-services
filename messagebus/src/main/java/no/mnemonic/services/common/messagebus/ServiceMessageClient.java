@@ -2,7 +2,11 @@ package no.mnemonic.services.common.messagebus;
 
 import no.mnemonic.commons.logging.Logger;
 import no.mnemonic.commons.logging.Logging;
-import no.mnemonic.commons.metrics.*;
+import no.mnemonic.commons.metrics.MetricAspect;
+import no.mnemonic.commons.metrics.MetricException;
+import no.mnemonic.commons.metrics.Metrics;
+import no.mnemonic.commons.metrics.MetricsData;
+import no.mnemonic.commons.metrics.TimerContext;
 import no.mnemonic.messaging.requestsink.Message;
 import no.mnemonic.messaging.requestsink.MessagingInterruptedException;
 import no.mnemonic.messaging.requestsink.RequestHandler;
@@ -69,6 +73,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
   private final Map<Class<?>, Function<ResultSet, ? extends ResultSet>> extenderFunctions;
   private final ThreadLocal<ServiceContext.Priority> threadPriority = new ThreadLocal<>();
   private final ThreadLocal<ServiceContext.Priority> nextPriority = new ThreadLocal<>();
+  private final ThreadLocal<Integer> nextResponseWindowSize = new ThreadLocal<>();
   private static final ThreadLocal<ServiceContext.Priority> globalThreadPriority = new ThreadLocal<>();
 
   //variables
@@ -85,7 +90,8 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
 
   /**
    * Create a new Service Message Client
-   *  @param proxyInterface    the class of the service interface
+   *
+   * @param proxyInterface    the class of the service interface
    * @param requestSink       the requestsink to use for messaging. Must be attached to a ServiceMessageHandler on the other side.
    * @param maxWait           the maximum milliseconds to wait for replies from the requestsink (will allow keepalives to extend this)
    * @param defaultPriority   the default priority to use when sending request messages
@@ -163,6 +169,11 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     public void setNextRequestPriority(Priority priority) {
       ServiceMessageClient.this.nextPriority.set(priority);
     }
+
+    @Override
+    public void setNextResponseWindowSize(int responseWindowSize) {
+      ServiceMessageClient.this.nextResponseWindowSize.set(responseWindowSize);
+    }
   }
 
   private class MessageInvocationHandler implements InvocationHandler {
@@ -192,6 +203,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
         ServiceRequestMessage msg = ServiceRequestMessage.builder()
                 .setRequestID(requestID.toString())
                 .setPriority(Message.Priority.valueOf(determinePriority().name()))
+                .setResponseWindowSize(determineResponseWindowSize())
                 .setServiceName(proxyInterface.getName())
                 .setMethodName(method.getName())
                 .setArgumentTypes(fromTypes(method.getParameterTypes()))
@@ -201,7 +213,19 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
         if (LOGGER.isDebug()) {
           LOGGER.debug(">> signal [callID=%s service=%s method=%s]", msg.getRequestID(), msg.getServiceName(), msg.getMethodName());
         }
-        RequestHandler handler = RequestHandler.signal(requestSink, msg, true, maxWait);
+        //prepare a response handler
+        RequestHandler handler = RequestHandler.builder()
+                .setCallID(msg.getRequestID())
+                .setAllowKeepAlive(true)
+                //Make responsequeue double size of the response window size, to ensure we never run out of queue.
+                //Response window (flow control) is only active for V4 protocol clients.
+                //For V3 protocol clients, the responsequeue is now bounded, but without flow control this may cause slow clients to block other clients.
+                .setResponseQueueSize(2 * msg.getResponseWindowSize())
+                .setMaxWait(maxWait)
+                .build();
+        //send the signal
+        requestSink.signal(msg, handler, maxWait);
+        //return a response handler
         return handleResponses(handler, method);
       }
     }
@@ -216,14 +240,23 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     }
   }
 
+  private int determineResponseWindowSize() {
+    if (nextResponseWindowSize.get() != null) {
+      int size = nextResponseWindowSize.get();
+      nextResponseWindowSize.remove();
+      return size;
+    } else {
+      return Message.DEFAULT_RESPONSE_WINDOW_SIZE;
+    }
+  }
   private ServiceContext.Priority determinePriority() {
     if (nextPriority.get() != null) {
       ServiceContext.Priority priority = nextPriority.get();
       nextPriority.remove();
       return priority;
-    } else if (threadPriority.get() != null){
+    } else if (threadPriority.get() != null) {
       return threadPriority.get();
-    } else if (globalThreadPriority.get() != null){
+    } else if (globalThreadPriority.get() != null) {
       return globalThreadPriority.get();
     } else {
       return defaultPriority;
@@ -233,7 +266,6 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
   private Object handleResponses(RequestHandler handler, Method invokedMethod) throws Throwable {
     if (ResultSet.class.isAssignableFrom(invokedMethod.getReturnType())) {
       //if method returns a ResultSet, the handler will send a streaming response
-      //noinspection unchecked
       try {
         return handleStreamingResponse(handler, invokedMethod);
       } catch (ServiceTimeOutException ex) {
@@ -271,8 +303,8 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
       serviceTimeOuts.increment();
       LOGGER.error("ServiceTimeoutException while invoking %s", invokedMethod);
       throw new ServiceTimeOutException(
-          String.format("ServiceTimeoutException while waiting for responses for %s", invokedMethod),
-          proxyInterface.getName()
+              String.format("ServiceTimeoutException while waiting for responses for %s", invokedMethod),
+              proxyInterface.getName()
       );
     }
     if (LOGGER.isDebug()) {
@@ -286,7 +318,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     if (invokedMethod.getReturnType().equals(ResultSet.class)) {
       //create streaming resultset context, counting all RequestHandler errors
       //noinspection unchecked
-      return (R)new StreamingResultSetContext<R>(handler, invokedMethod, error -> {
+      return (R) new StreamingResultSetContext<R>(handler, invokedMethod, error -> {
         streamingInterrupted.increment();
         handler.abort();
       });

@@ -7,11 +7,12 @@ import no.mnemonic.messaging.requestsink.jms.JMSRequestProxy;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestSink;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.ServiceSessionFactory;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
@@ -22,9 +23,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 public class ServiceMessagingTest  extends AbstractServiceMessagePerformanceTest {
 
   private static final int SERVER_THREADS = 10;
@@ -37,21 +41,20 @@ public class ServiceMessagingTest  extends AbstractServiceMessagePerformanceTest
   @Mock
   private ServiceSessionFactory sessionFactory;
 
-  @Before
+  @BeforeEach
   public void setup() throws InterruptedException, ExecutionException, TimeoutException {
-    MockitoAnnotations.initMocks(this);
-    when(sessionFactory.openSession()).thenReturn(() -> {});
-    when(testService.getString(any())).thenAnswer(i -> i.getArgument(0));
-    when(testService.primitiveLongArgument(anyLong())).thenReturn("resultstring");
-    when(testService.primitiveBooleanArgument(anyBoolean())).thenReturn("resultstring");
-    when(testService.primitiveIntArgument(anyInt())).thenReturn("resultstring");
-    when(testService.primitiveCharArgument(anyChar())).thenReturn("resultstring");
-    when(testService.primitiveByteArgument(anyByte())).thenReturn("resultstring");
-    when(testService.primitiveFloatArgument(anyFloat())).thenReturn("resultstring");
-    when(testService.primitiveDoubleArgument(anyDouble())).thenReturn("resultstring");
-    when(testService.primitiveArrayArgument(any())).thenReturn("resultstring");
-    when(testService.objectArrayArgument(any())).thenReturn("resultstring");
-    when(testService.getResultSet(any())).thenAnswer(i -> createResultSet(createResults(1000)));
+    lenient().when(sessionFactory.openSession()).thenReturn(() -> {});
+    lenient().when(testService.getString(any())).thenAnswer(i -> i.getArgument(0));
+    lenient().when(testService.primitiveLongArgument(anyLong())).thenReturn("resultstring");
+    lenient().when(testService.primitiveBooleanArgument(anyBoolean())).thenReturn("resultstring");
+    lenient().when(testService.primitiveIntArgument(anyInt())).thenReturn("resultstring");
+    lenient().when(testService.primitiveCharArgument(anyChar())).thenReturn("resultstring");
+    lenient().when(testService.primitiveByteArgument(anyByte())).thenReturn("resultstring");
+    lenient().when(testService.primitiveFloatArgument(anyFloat())).thenReturn("resultstring");
+    lenient().when(testService.primitiveDoubleArgument(anyDouble())).thenReturn("resultstring");
+    lenient().when(testService.primitiveArrayArgument(any())).thenReturn("resultstring");
+    lenient().when(testService.objectArrayArgument(any())).thenReturn("resultstring");
+    lenient().when(testService.getResultSet(any())).thenAnswer(i -> createResultSet(createResults(1000)));
 
     ServiceMessageHandler listener = ServiceMessageHandler.builder()
             .setService(testService)
@@ -78,7 +81,7 @@ public class ServiceMessagingTest  extends AbstractServiceMessagePerformanceTest
     Thread.sleep(1000);
   }
 
-  @After
+  @AfterEach
   public void teardown() throws InterruptedException {
     container.destroy();
   }
@@ -152,14 +155,14 @@ public class ServiceMessagingTest  extends AbstractServiceMessagePerformanceTest
     assertEquals(1000, result.size());
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testRemoteException() throws NotBoundException, RemoteException {
     when(testService.getString(any())).thenAnswer(i -> {
       System.out.println("Got request to server mock");
       throw new IllegalArgumentException("Illegal argument");
     });
     TestService srv = client.getInstance();
-    srv.getString("string");
+    assertThrows(IllegalArgumentException.class, ()->srv.getString("string"));
   }
 
   @Test

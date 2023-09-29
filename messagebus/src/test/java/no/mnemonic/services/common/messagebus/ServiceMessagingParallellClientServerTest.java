@@ -5,11 +5,12 @@ import no.mnemonic.commons.container.ComponentContainer;
 import no.mnemonic.commons.metrics.TimerContext;
 import no.mnemonic.messaging.requestsink.jms.JMSRequestProxy;
 import no.mnemonic.services.common.api.ServiceSessionFactory;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,22 +19,23 @@ import java.util.concurrent.atomic.LongAdder;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 public class ServiceMessagingParallellClientServerTest extends AbstractServiceMessagePerformanceTest {
 
-  private Collection<ComponentContainer> serverContainers = new ArrayList<>();
-  private Collection<ServiceMessageHandler> handlers = new ArrayList<>();
+  private final Collection<ComponentContainer> serverContainers = new ArrayList<>();
+  private final Collection<ServiceMessageHandler> handlers = new ArrayList<>();
   @Mock
   private TestService testService;
   @Mock
   private ServiceSessionFactory sessionFactory;
 
-  @Before
+  @BeforeEach
   public void setup() {
-    MockitoAnnotations.initMocks(this);
-    when(sessionFactory.openSession()).thenReturn(() -> {});
+    when(sessionFactory.openSession()).thenReturn(() -> {
+    });
   }
 
-  @After
+  @AfterEach
   public void teardown() {
     serverContainers.forEach(ComponentContainer::destroy);
     handlers.forEach(this::printHandlerStats);
@@ -69,11 +71,11 @@ public class ServiceMessagingParallellClientServerTest extends AbstractServiceMe
     when(testService.getString(any())).thenAnswer(createAnswer(delayPerRequest));
 
     int totalServerThreads = serverInstances * threadsPerServer;
-    long targetTime = delayPerRequest * clientThreads * invocationsPerClient / serverInstances / threadsPerServer;
+    long targetTime = (long)delayPerRequest * clientThreads * invocationsPerClient / serverInstances / threadsPerServer;
 
-    System.out.println(String.format("Running %d server instances with %d threads (threadsPerServer=%d delayPerRequest=%d)", totalServerThreads, serverInstances, threadsPerServer, delayPerRequest));
-    System.out.println(String.format("Executing %d clients with %d requests/client (total %d requests)", clientThreads, invocationsPerClient, clientThreads * invocationsPerClient));
-    System.out.println(String.format("Target time %dms", targetTime));
+    System.out.printf("Running %d server instances with %d threads (threadsPerServer=%d delayPerRequest=%d)\n", totalServerThreads, serverInstances, threadsPerServer, delayPerRequest);
+    System.out.printf("Executing %d clients with %d requests/client (total %d requests)\n", clientThreads, invocationsPerClient, clientThreads * invocationsPerClient);
+    System.out.printf("Target time %dms\n", targetTime);
 
     for (int i = 0; i < serverInstances; i++) {
       setupServer(threadsPerServer);
@@ -84,7 +86,7 @@ public class ServiceMessagingParallellClientServerTest extends AbstractServiceMe
       runParallelClients(invocationsPerClient, clientThreads, clientMaxWait);
     }
 
-    System.out.println(String.format("Target time %dms - Time used %dms", targetTime, timer.longValue()));
+    System.out.printf("Target time %dms - Time used %dms\n", targetTime, timer.longValue());
   }
 
   private void setupServer(int serverThreads) {

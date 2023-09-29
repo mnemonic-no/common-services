@@ -22,14 +22,16 @@ public class ServiceRequestMessage implements Message, AppendMembers {
   private final String[] argumentTypes;
   private final Object[] arguments;
   private final Priority priority;
+  private final int responseWindowSize;
 
-  private ServiceRequestMessage(String requestID, String serviceName, String methodName, String[] argumentTypes, Object[] arguments, Priority priority) {
+  private ServiceRequestMessage(String requestID, String serviceName, String methodName, String[] argumentTypes, Object[] arguments, Priority priority, int responseWindowSize) {
     this.requestID = requestID;
     this.serviceName = serviceName;
     this.methodName = methodName;
     this.argumentTypes = argumentTypes;
     this.arguments = arguments;
     this.priority = priority;
+    this.responseWindowSize = responseWindowSize;
     validate();
   }
 
@@ -39,6 +41,12 @@ public class ServiceRequestMessage implements Message, AppendMembers {
     AppendUtils.appendField(buf, "serviceName", serviceName);
     AppendUtils.appendField(buf, "methodName", methodName);
     AppendUtils.appendField(buf, "priority", priority);
+    AppendUtils.appendField(buf, "segmentWindowSize", responseWindowSize);
+  }
+
+  @Override
+  public int getResponseWindowSize() {
+    return responseWindowSize;
   }
 
   @Override
@@ -102,12 +110,18 @@ public class ServiceRequestMessage implements Message, AppendMembers {
     private String[] argumentTypes;
     private Object[] arguments;
     private Priority priority = standard;
+    private int responseWindowSize = DEFAULT_RESPONSE_WINDOW_SIZE;
 
     private Builder() {
     }
 
     ServiceRequestMessage build() {
-      return new ServiceRequestMessage(requestID, serviceName, methodName, argumentTypes, arguments, priority);
+      return new ServiceRequestMessage(requestID, serviceName, methodName, argumentTypes, arguments, priority, responseWindowSize);
+    }
+
+    public Builder setResponseWindowSize(int responseWindowSize) {
+      this.responseWindowSize = responseWindowSize;
+      return this;
     }
 
     public Builder setPriority(Priority priority) {

@@ -3,6 +3,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.4.0] - 2023-09-29
+### Changed
+ARGUSUSER-6576
+- Upgraded messaging to 1.4.0.
+
+### Upgrade notes
+This upgrade introduces JMS RequestSink protocol V4, and removes support for protocol versions V1 and V2.
+- Upgrading clients must ensure that service topic is configured and set.
+- Upgrading clients _should_ enable protocol version V4, to enable flow control of streaming responses.
+- For clients having V4 enabled, a new method `ServiceProxy.setNextResponseWindowSize(int)` allows 
+client to set the response window size for the next request. This can be used to e.g. reduce memory pressure if each response segment
+in the client invocation response is expected to be very large.
+
 ## [0.3.49] - 2023-03-22
 ### Changed
 ARGUS-35165

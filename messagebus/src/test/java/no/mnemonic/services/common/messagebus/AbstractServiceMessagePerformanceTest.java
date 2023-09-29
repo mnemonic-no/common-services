@@ -17,14 +17,19 @@ import org.apache.activemq.broker.region.policy.PolicyMap;
 import org.apache.activemq.broker.region.policy.SharedDeadLetterStrategy;
 import org.apache.activemq.network.ConditionalNetworkBridgeFilterFactory;
 import org.apache.activemq.network.NetworkConnector;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
@@ -35,20 +40,21 @@ public abstract class AbstractServiceMessagePerformanceTest extends AbstractServ
   private static final String INITIAL_CONTEXT_FACTORY_NAME = "org.apache.activemq.jndi.ActiveMQInitialContextFactory";
   private static final String CONNECTION_URL = "failover:(tcp://localhost:%d,tcp://localhost:%d)?initialReconnectDelay=100&maxReconnectAttempts=10&timeout=1000";
   private static final String CONNECTION_FACTORY = "ConnectionFactory";
-  private static int port1 = AvailablePortFinder.getAvailablePort(10000);
-  private static int port2 = AvailablePortFinder.getAvailablePort(20000);
+  private static final int port1 = AvailablePortFinder.getAvailablePort(10000);
+  private static final int port2 = AvailablePortFinder.getAvailablePort(20000);
   private static BrokerService broker1;
   private static BrokerService broker2;
 
   private String serviceQueue;
+  private String serviceTopic;
 
-  @BeforeClass
+  @BeforeAll
   public static void setupBrokers() throws Exception {
     broker1 = setupBroker(port1, port2);
     broker2 = setupBroker(port2, port1);
   }
 
-  @AfterClass
+  @AfterAll
   public static void cleanupBrokers() throws Exception {
     broker1.stop();
     broker2.stop();
@@ -58,9 +64,10 @@ public abstract class AbstractServiceMessagePerformanceTest extends AbstractServ
     return String.format(CONNECTION_URL, port1, port2);
   }
 
-  @Before
+  @BeforeEach
   public void prepare() {
     serviceQueue = "TestService" + (int) (Math.random() * 100000);
+    serviceTopic = serviceQueue + "-topic";
   }
 
   <T extends AbstractJMSRequestBase.BaseBuilder<T>> T addJMSConnection(T builder) {
@@ -75,8 +82,9 @@ public abstract class AbstractServiceMessagePerformanceTest extends AbstractServ
     //set up request sink pointing at a vm-local topic
     return addJMSConnection(JMSRequestSink.builder())
             .setPriority(9)
-            .setProtocolVersion(ProtocolVersion.V2)
-            .setDestinationName("dynamicQueues/" + serviceQueue)
+            .setProtocolVersion(ProtocolVersion.V3)
+            .setQueueName("dynamicQueues/" + serviceQueue)
+            .setTopicName("dynamicTopics/" + serviceTopic)
             .build();
   }
 
@@ -84,8 +92,9 @@ public abstract class AbstractServiceMessagePerformanceTest extends AbstractServ
     return addJMSConnection(JMSRequestProxy.builder())
             .addSerializer(new DefaultJavaMessageSerializer())
             .setPriority(9)
-            .setDestinationName("dynamicQueues/" + serviceQueue)
-            .setMaxConcurrentCalls(concurrency)
+            .setQueueName("dynamicQueues/" + serviceQueue)
+            .setTopicName("dynamicTopics/" + serviceTopic)
+            .setMaxConcurrentCallsStandard(concurrency)
             .setRequestSink(listener)
             .build();
   }
@@ -93,7 +102,7 @@ public abstract class AbstractServiceMessagePerformanceTest extends AbstractServ
   private int runTestClient(int threadID, int invocations, int maxWait) {
     JMSRequestSink requestSink = createJmsRequestSink();
 
-    ServiceMessageClient client = ServiceMessageClient.builder(TestService.class)
+    ServiceMessageClient<?> client = ServiceMessageClient.builder(TestService.class)
             .setRequestSink(requestSink)
             .setMaxWait(maxWait)
             .build();
@@ -108,17 +117,17 @@ public abstract class AbstractServiceMessagePerformanceTest extends AbstractServ
     long startTime = System.currentTimeMillis();
     for (int i = 0; i < invocations; i++) {
       if (LambdaUtils.tryTo(() -> srv.getString("str"))) {
-        System.out.println(String.format("Thread#%d - attempt %d - success ", threadID, i));
+        System.out.printf("Thread#%d - attempt %d - success \n", threadID, i);
         successes++;
       } else {
-        System.out.println(String.format("Thread#%d - attempt %d - error ", threadID, i));
+        System.out.printf("Thread#%d - attempt %d - error \n", threadID, i);
         errors++;
       }
     }
     long time = System.currentTimeMillis() - startTime;
     double avg = ((double) time) / invocations;
     clientContainer.destroy();
-    System.out.println(String.format("Finished client thread#%d in %dms (avg=%.2fms success=%d error=%d)", threadID, time, avg, successes, errors));
+    System.out.printf("Finished client thread#%d in %dms (avg=%.2fms success=%d error=%d)\n", threadID, time, avg, successes, errors);
     return errors;
   }
 
@@ -144,7 +153,7 @@ public abstract class AbstractServiceMessagePerformanceTest extends AbstractServ
 
     clientExecutor.shutdown();
     int count = countPerThread * clientThreads;
-    System.out.println(String.format("Executed %d invocations in %d ms (%.2f ms/req errors=%d)", count, time.longValue(), time.doubleValue() / count, totalErrors));
+    System.out.printf("Executed %d invocations in %d ms (%.2f ms/req errors=%d)\n", count, time.longValue(), time.doubleValue() / count, totalErrors);
     assertEquals(0, totalErrors);
   }
 

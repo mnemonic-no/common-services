@@ -1,14 +1,16 @@
 package no.mnemonic.services.common.messagebus;
 
 import no.mnemonic.messaging.requestsink.RequestContext;
+import no.mnemonic.messaging.requestsink.ResponseListener;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.ServiceSession;
 import no.mnemonic.services.common.api.ServiceSessionFactory;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
@@ -28,6 +30,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
 
   private static final String METHOD_GET_STRING = "getString";
@@ -44,43 +47,47 @@ public class ServiceMessageHandlerTest extends AbstractServiceMessageTest {
   @Mock
   private RequestContext signalContext;
 
-  private BlockingDeque<ServiceResponseMessage> responses = new LinkedBlockingDeque<>();
-  private CompletableFuture<Throwable> error = new CompletableFuture<>();
-  private CompletableFuture<Void> endOfStream = new CompletableFuture<>();
-  private AtomicLong keepAlive = new AtomicLong();
+  private final BlockingDeque<ServiceResponseMessage> responses = new LinkedBlockingDeque<>();
+  private final CompletableFuture<Throwable> error = new CompletableFuture<>();
+  private final CompletableFuture<Void> endOfStream = new CompletableFuture<>();
+  private final AtomicLong keepAlive = new AtomicLong();
   private ExecutorService executor = Executors.newCachedThreadPool();
 
   ServiceMessageHandler handler;
 
-  @Before
+  @BeforeEach
   public void setup() {
-    MockitoAnnotations.initMocks(this);
-    when(testService.getString(any())).thenReturn("result");
-    when(testService.primitiveLongArgument(anyLong())).thenReturn("result");
-    when(testService.primitiveIntArgument(anyInt())).thenReturn("result");
-    when(testService.primitiveCharArgument(anyChar())).thenReturn("result");
-    when(testService.primitiveByteArgument(anyByte())).thenReturn("result");
-    when(testService.primitiveBooleanArgument(anyBoolean())).thenReturn("result");
-    when(testService.primitiveFloatArgument(anyFloat())).thenReturn("result");
-    when(testService.primitiveDoubleArgument(anyDouble())).thenReturn("result");
-    when(testService.objectArrayArgument(any())).thenReturn("result");
-    when(testService.primitiveArrayArgument(any())).thenReturn("result");
-    when(testService.getResultSet(any())).thenReturn(createResultSet(createResults(3)));
-    when(testService.getResultSetWithBatchSize(any())).thenReturn(createResultSet(createResults(3)));
-    when(sessionFactory.openSession()).thenReturn(session);
+    lenient().when(testService.getString(any())).thenReturn("result");
+    lenient().when(testService.primitiveLongArgument(anyLong())).thenReturn("result");
+    lenient().when(testService.primitiveIntArgument(anyInt())).thenReturn("result");
+    lenient().when(testService.primitiveCharArgument(anyChar())).thenReturn("result");
+    lenient().when(testService.primitiveByteArgument(anyByte())).thenReturn("result");
+    lenient().when(testService.primitiveBooleanArgument(anyBoolean())).thenReturn("result");
+    lenient().when(testService.primitiveFloatArgument(anyFloat())).thenReturn("result");
+    lenient().when(testService.primitiveDoubleArgument(anyDouble())).thenReturn("result");
+    lenient().when(testService.objectArrayArgument(any())).thenReturn("result");
+    lenient().when(testService.primitiveArrayArgument(any())).thenReturn("result");
+    lenient().when(testService.getResultSet(any())).thenReturn(createResultSet(createResults(3)));
+    lenient().when(testService.getResultSetWithBatchSize(any())).thenReturn(createResultSet(createResults(3)));
+    lenient().when(sessionFactory.openSession()).thenReturn(session);
 
-    when(signalContext.addResponse(any())).thenAnswer(i -> responses.add(i.getArgument(0)));
-    when(signalContext.keepAlive(anyLong())).thenAnswer(i -> {
+    lenient().when(signalContext.addResponse(any())).thenAnswer(i -> responses.add(i.getArgument(0)));
+    lenient().when(signalContext.addResponse(any(), any())).thenAnswer(i -> {
+      responses.add(i.getArgument(0));
+      i.<ResponseListener>getArgument(1).responseAccepted();
+      return true;
+    });
+    lenient().when(signalContext.keepAlive(anyLong())).thenAnswer(i -> {
       keepAlive.set(i.getArgument(0));
       return !endOfStream.isDone();
     });
-    doAnswer(i -> endOfStream.complete(null)).when(signalContext).endOfStream();
-    doAnswer(i -> error.complete(i.getArgument(0))).when(signalContext).notifyError(any());
+    lenient().doAnswer(i -> endOfStream.complete(null)).when(signalContext).endOfStream();
+    lenient().doAnswer(i -> error.complete(i.getArgument(0))).when(signalContext).notifyError(any());
 
     handler  = createHandler();
   }
 
-  @After
+  @AfterEach
   public void cleanup() {
     executor = Executors.newCachedThreadPool();
   }
