@@ -1,0 +1,34 @@
+@startuml
+
+[Client Code] #LightGreen
+
+package "ServiceClient" {
+  [ClientV1InvocationHandler] #DarkKhaki
+  [Serializer] #DarkKhaki
+  [ServiceV1HttpClient] #DarkKhaki
+}
+
+package "ServiceProxy" {
+  [Bulk Connector] #LightBlue
+  [Standard Connector] #LightBlue
+  [Expedite Connector] #LightBlue
+  [ServiceV1Servlet] #LightBlue
+  [ServiceInvocationHandler] #LightBlue
+  [Server Serializer] as "Serializer" #LightBlue
+}
+[Service] #Pink
+
+[Client Code] --> [ClientV1InvocationHandler] : invoke method
+[ClientV1InvocationHandler] --> [ServiceV1HttpClient] : submit request
+[ClientV1InvocationHandler] -> [Serializer] : serialize
+[ServiceV1HttpClient] ---> [Bulk Connector] : http://srv:bulk
+[ServiceV1HttpClient] ---> [Standard Connector] : http://srv:standard
+[ServiceV1HttpClient] ---> [Expedite Connector] : http://srv:expedite
+[Bulk Connector] --> [ServiceV1Servlet]
+[Standard Connector] --> [ServiceV1Servlet]
+[Expedite Connector] --> [ServiceV1Servlet]
+[ServiceV1Servlet] --> [ServiceInvocationHandler]
+[ServiceInvocationHandler] -> [Server Serializer] : deserialize
+[ServiceInvocationHandler] --> [Service] : invoke method
+
+@enduml

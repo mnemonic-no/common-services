@@ -1,0 +1,20 @@
+@startuml
+
+[Client]
+[API Proxy]
+package "Node 1" {
+  [ServiceProxyA Node1]
+  [ServiceA Node1]
+}
+package "Node 2" {
+  [ServiceProxyA Node2]
+  [ServiceA Node2]
+}
+
+[Client] --> [API Proxy]
+[API Proxy] --> [ServiceProxyA Node1] : round-robin
+[API Proxy] --> [ServiceProxyA Node2]
+[ServiceProxyA Node1] --> [ServiceA Node1]
+[ServiceProxyA Node2] --> [ServiceA Node2]
+
+@enduml

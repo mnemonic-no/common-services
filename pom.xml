@@ -3,7 +3,7 @@
   <groupId>no.mnemonic.services.common</groupId>
   <artifactId>parent</artifactId>
   <packaging>pom</packaging>
-  <version>0.4.1-SNAPSHOT</version>
+  <version>0.5.0-SNAPSHOT</version>
 
   <name>mnemonic common services</name>
   <description>Reusable Java components for building scalable microservices</description>
@@ -54,6 +54,12 @@
     <junit.jupiter.version>5.10.0</junit.jupiter.version>
     <mockito.version>4.11.0</mockito.version>
     <swagger.version>1.6.9</swagger.version>
+    <lombok.version>1.18.30</lombok.version>
+    <xstream.version>1.4.20</xstream.version>
+    <jackson.version>2.16.1</jackson.version>
+    <wiremock.version>2.27.2</wiremock.version>
+    <jetty.version>9.4.52.v20230823</jetty.version>
+    <apache.http.version>5.3</apache.http.version>
 
     <!-- build dependencies -->
     <maven.clean.version>3.1.0</maven.clean.version>
@@ -78,6 +84,7 @@
     <module>hazelcast-consumer</module>
     <module>hazelcast5-consumer</module>
     <module>service-api</module>
+    <module>service-proxy</module>
     <module>messagebus</module>
   </modules>
 
@@ -87,6 +94,15 @@
     <url>https://github.com/mnemonic-no/common-services</url>
     <tag>HEAD</tag>
   </scm>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <version>${lombok.version}</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
 
   <build>
     <resources>
@@ -117,6 +133,10 @@
                 <requireMavenVersion>
                   <version>3.0.5</version>
                 </requireMavenVersion>
+                <!-- At least JDK11 is required for building. -->
+                <requireJavaVersion>
+                  <version>11.0.0</version>
+                </requireJavaVersion>
               </rules>
             </configuration>
           </execution>
@@ -135,6 +155,14 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${maven.surefire.version}</version>
+        <configuration>
+          <!-- Required to execute tests using XStream on JDK17. -->
+          <argLine>
+            --add-opens java.base/java.io=ALL-UNNAMED
+            --add-opens java.base/java.lang=ALL-UNNAMED
+            --add-opens java.base/java.util=ALL-UNNAMED
+          </argLine>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -228,9 +256,10 @@
           <!-- Fail the build if a detected license is not in the white list. -->
           <failIfWarning>true</failIfWarning>
           <!-- Only allow licenses which are in this list. -->
-          <includedLicenses>Apache 2|CDDL|Eclipse|ISC|MIT</includedLicenses>
+          <includedLicenses>Apache 2|CDDL|Eclipse|ISC|MIT|BSD</includedLicenses>
           <!-- Consolidate license names. -->
           <licenseMerges>
+            <licenseMerge>BSD|BSD-3-Clause</licenseMerge>
             <licenseMerge>Apache 2|Apache-2.0|ASF 2.0|Apache License 2.0|Apache Software License - Version 2.0|Apache License, Version 2.0|The Apache Software License, Version 2.0</licenseMerge>
             <licenseMerge>CDDL|CDDL 1.1|CDDL + GPLv2 with classpath exception</licenseMerge>
             <licenseMerge>Eclipse|Eclipse Public License 1.0|Eclipse Public License - Version 1.0|Eclipse Distribution License - v 1.0|Eclipse Public License v2.0</licenseMerge>

@@ -1,0 +1,20 @@
+@startuml
+
+[Client]
+[API Proxy]
+package "Service Node A" {
+  [ServiceProxy A]
+  [Service A]
+}
+package "Service Node B" {
+  [ServiceProxy B]
+  [Service B]
+}
+
+[Client] --> [API Proxy]
+[API Proxy] --> [ServiceProxy A] : "path /ServiceA"
+[API Proxy] --> [ServiceProxy B] : "path /ServiceB"
+[ServiceProxy A] --> [Service A]
+[ServiceProxy B] --> [Service B]
+
+@enduml

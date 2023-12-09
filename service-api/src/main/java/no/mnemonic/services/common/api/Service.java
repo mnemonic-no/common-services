@@ -6,4 +6,12 @@ package no.mnemonic.services.common.api;
  */
 public interface Service {
 
+  /**
+   *
+   * @return the ServiceContext for this service proxy
+   * @throws NotAProxyException if this is not a proxy.
+   */
+  default ServiceContext getServiceContext() throws NotAProxyException {
+    throw new NotAProxyException();
+  }
 }

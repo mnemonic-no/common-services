@@ -10,6 +10,7 @@ import no.mnemonic.messaging.requestsink.RequestListener;
 import no.mnemonic.messaging.requestsink.RequestSink;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.ResultSetStreamInterruptedException;
+import no.mnemonic.services.common.api.ServiceContext;
 import no.mnemonic.services.common.api.ServiceTimeOutException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -33,8 +34,13 @@ import java.util.function.Supplier;
 import static no.mnemonic.commons.testtools.MockitoTools.match;
 import static no.mnemonic.commons.utilities.collections.ListUtils.list;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ServiceMessageClientTest {
@@ -87,7 +93,7 @@ class ServiceMessageClientTest {
   void testSetThreadPriority() {
     mockSingleResponse();
     TestService srv = proxy();
-    ((ServiceProxy)srv).getServiceContext().setThreadPriority(ServiceContext.Priority.bulk);
+    srv.getServiceContext().setThreadPriority(ServiceContext.Priority.bulk);
     srv.getString("arg");
     srv.getString("arg");
     verify(requestSink, times(2)).signal(match(r -> r.getPriority() == Message.Priority.bulk, ServiceRequestMessage.class), any(), anyLong());
@@ -114,7 +120,7 @@ class ServiceMessageClientTest {
   void testSetNextPriority() {
     mockSingleResponse();
     TestService srv = proxy();
-    ((ServiceProxy)srv).getServiceContext().setNextRequestPriority(ServiceContext.Priority.bulk);
+    srv.getServiceContext().setNextRequestPriority(ServiceContext.Priority.bulk);
     srv.getString("arg");
     srv.getString("arg");
     verify(requestSink).signal(match(r -> r.getPriority() == Message.Priority.bulk, ServiceRequestMessage.class), any(), anyLong());

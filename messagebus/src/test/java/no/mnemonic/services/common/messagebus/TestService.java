@@ -47,10 +47,10 @@ public interface TestService extends Service {
   abstract class MyAnnotatedResultSet<T> implements ResultSet<T> {
   }
 
-  class MyResultSetExtender implements Function<ResultSet, MyAnnotatedResultSet> {
+  class MyResultSetExtender implements Function<ResultSet<?>, MyAnnotatedResultSet<?>> {
     @Override
-    public MyAnnotatedResultSet apply(ResultSet rs) {
-      return new MyAnnotatedResultSet() {
+    public MyAnnotatedResultSet<?> apply(ResultSet<?> rs) {
+      return new MyAnnotatedResultSet<Object>() {
         @Override
         public int getCount() {
           return rs.getCount();
@@ -67,8 +67,9 @@ public interface TestService extends Service {
         }
 
         @Override
-        public Iterator iterator() throws ResultSetStreamInterruptedException {
-          return rs.iterator();
+        public Iterator<Object> iterator() throws ResultSetStreamInterruptedException {
+          //noinspection unchecked
+          return (Iterator<Object>) rs.iterator();
         }
       };
     }
