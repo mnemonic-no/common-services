@@ -13,6 +13,8 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -44,9 +46,10 @@ public class ServiceV1Servlet extends HttpServlet {
       }
       if (LOGGER.isDebug()) LOGGER.debug("<< request %s", req.getRequestURI());
 
-      String serviceName = matcher.group(1);
+      String serviceName = URLDecoder.decode(matcher.group(1), StandardCharsets.UTF_8);
       Type type = Type.valueOf(matcher.group(2));
       String methodName = matcher.group(3);
+
 
       ServiceInvocationHandler<?> handler = invocationHandlers.get(serviceName);
       if (handler == null) {

@@ -25,10 +25,12 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -72,6 +74,11 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
   private final LongAdder totalRequestCount = new LongAdder();
   private final LongAdder totalKeepAliveCount = new LongAdder();
   private final LongAdder totalRequestTimeMillis = new LongAdder();
+  private final Set<UUID> ongoingRequests = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+  public int getOngoingRequestCount() {
+    return ongoingRequests.size();
+  }
 
   @Override
   public Metrics getMetrics() throws MetricException {
@@ -131,6 +138,7 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
     UUID requestID = ifNull(request.getRequestID(), UUID::randomUUID);
     //always OK response (exceptions from the service are also 200 OK)
     httpResponse.setStatus(HTTP_OK_RESPONSE);
+    ongoingRequests.add(requestID);
     try (TimerContext ignored = TimerContext.timerMillis(totalRequestTimeMillis::add);
          ServiceSession session = sessionFactory.openSession();
          JsonGenerator generator = MAPPER.createGenerator(httpResponse.getOutputStream())
@@ -141,16 +149,22 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
         if (LOGGER.isDebug()) {
           LOGGER.debug("<< invoke callID=%s method=%s priority=%s", requestID, method.getName(), request.getPriority());
         }
+        set(debugListeners).forEach(l -> l.invocationStarted(requestID));
         Object invocationResult = invokeWhileSendingKeepalive(requestID, method, request.getArguments(), serializer, generator);
         //write the result back
         writer.handle(requestID, serializer, generator, invocationResult);
+        set(debugListeners).forEach(l -> l.invocationSucceeded(requestID));
       } catch (ExecutionException e) {
         //since invocation is a method call, any exception is an InvocationTargetException
         assert (e.getCause() instanceof InvocationTargetException);
         writeException(request.getRequestID(), serializer, generator, (InvocationTargetException) e.getCause());
+        set(debugListeners).forEach(l -> l.invocationFailed(requestID));
       } catch (Throwable e) {
         LOGGER.error(e, "Unexpected exception");
+        set(debugListeners).forEach(l -> l.invocationFailed(requestID));
       }
+    } finally {
+      ongoingRequests.remove(requestID);
     }
   }
 
@@ -245,6 +259,9 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
   }
 
   public interface DebugListener {
+    void invocationStarted(UUID requestID);
+    void invocationSucceeded(UUID requestID);
+    void invocationFailed(UUID requestID);
     void keepAliveSent(UUID requestID);
   }
 

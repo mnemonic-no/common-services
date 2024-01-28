@@ -100,6 +100,7 @@ public class ServiceProxy implements LifecycleAspect {
 
     try {
       server.start();
+      LOGGER.info("Listening...");
     } catch (Exception e) {
       LOGGER.error(e, "Error starting server");
       throw new IllegalStateException("Error starting server", e);
@@ -111,6 +112,7 @@ public class ServiceProxy implements LifecycleAspect {
   public void stopComponent() {
     if (server.get() == null) return;
     try {
+      LOGGER.info("Stopping server");
       server.get().stop();
     } catch (Exception e) {
       LOGGER.error(e, "Error stopping server");
