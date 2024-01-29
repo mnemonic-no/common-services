@@ -5,12 +5,12 @@
   <parent>
     <groupId>no.mnemonic.services.common</groupId>
     <artifactId>parent</artifactId>
-    <version>0.5.1</version>
+    <version>0.5.2-SNAPSHOT</version>
   </parent>
 
   <groupId>no.mnemonic.services.common</groupId>
   <artifactId>service-proxy</artifactId>
-  <version>0.5.1</version>
+  <version>0.5.2-SNAPSHOT</version>
 
   <dependencies>
     <dependency>
