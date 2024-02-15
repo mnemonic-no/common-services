@@ -38,8 +38,32 @@ public class Utils {
   public static Class<?>[] toTypes(@NonNull List<String> types) throws ClassNotFoundException {
     Class<?>[] clz = new Class[types.size()];
     for (int i = 0; i < types.size(); i++) {
-      clz[i] = Class.forName(types.get(i));
+      clz[i] = toType(types.get(i));
     }
     return clz;
+  }
+
+  private static Class<?> toType(String className) throws ClassNotFoundException {
+    if (className == null) throw new ClassNotFoundException("No type: null");
+    switch (className) {
+      case "long":
+        return long.class;
+      case "float":
+        return float.class;
+      case "int":
+        return int.class;
+      case "boolean":
+        return boolean.class;
+      case "char":
+        return char.class;
+      case "double":
+        return double.class;
+      case "byte":
+        return byte.class;
+      case "short":
+        return short.class;
+      default:
+        return Class.forName(className);
+    }
   }
 }
