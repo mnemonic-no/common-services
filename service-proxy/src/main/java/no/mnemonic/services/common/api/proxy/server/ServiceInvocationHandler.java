@@ -26,23 +26,19 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.LongAdder;
 
 import static no.mnemonic.commons.utilities.ObjectUtils.ifNull;
 import static no.mnemonic.commons.utilities.collections.SetUtils.set;
-import static no.mnemonic.services.common.api.proxy.Utils.HTTP_OK_RESPONSE;
-import static no.mnemonic.services.common.api.proxy.Utils.toArgs;
-import static no.mnemonic.services.common.api.proxy.Utils.toTypes;
+import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
+import static no.mnemonic.services.common.api.proxy.Utils.*;
 
 /**
  * This handler deals with the actual invocation of methods on the proxied service,
@@ -139,25 +135,30 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
     //always OK response (exceptions from the service are also 200 OK)
     httpResponse.setStatus(HTTP_OK_RESPONSE);
     ongoingRequests.add(requestID);
+
     try (TimerContext ignored = TimerContext.timerMillis(totalRequestTimeMillis::add);
-         ServiceSession session = sessionFactory.openSession();
          JsonGenerator generator = MAPPER.createGenerator(httpResponse.getOutputStream())
     ) {
       totalRequestCount.increment();
       try {
-        //send keepalives while invoking the method
         if (LOGGER.isDebug()) {
           LOGGER.debug("<< invoke callID=%s method=%s priority=%s", requestID, method.getName(), request.getPriority());
         }
         set(debugListeners).forEach(l -> l.invocationStarted(requestID));
-        Object invocationResult = invokeWhileSendingKeepalive(requestID, method, request.getArguments(), serializer, generator);
-        //write the result back
-        writer.handle(requestID, serializer, generator, invocationResult);
+        try (
+                AutoCloseable keepAliveTask = createKeepAliveTask(requestID, method, generator);
+                ServiceSession session = sessionFactory.openSession()
+        ) {
+          Object invocationResult = method.invoke(proxiedService, toArgs(serializer, request.getArguments()));
+          //stop keepalive task before writing result back
+          keepAliveTask.close();
+          //write the result back to writer
+          writer.handle(requestID, serializer, generator, invocationResult);
+        }
         set(debugListeners).forEach(l -> l.invocationSucceeded(requestID));
-      } catch (ExecutionException e) {
+      } catch (InvocationTargetException e) {
         //since invocation is a method call, any exception is an InvocationTargetException
-        assert (e.getCause() instanceof InvocationTargetException);
-        writeException(request.getRequestID(), serializer, generator, (InvocationTargetException) e.getCause());
+        writeException(request.getRequestID(), serializer, generator, e);
         set(debugListeners).forEach(l -> l.invocationFailed(requestID));
       } catch (Throwable e) {
         LOGGER.error(e, "Unexpected exception");
@@ -176,23 +177,34 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
   }
 
   /**
-   * Invoke method with arguments, while generating keepalive bytes
+   * Create task in separate thread to write keepalives back to generator while the main thread  is executing the request
    */
-  private Object invokeWhileSendingKeepalive(UUID requestID, Method method, List<String> arguments, Serializer serializer, JsonGenerator generator) throws IOException, ExecutionException, InterruptedException {
-    Future<Object> future = executorService.submit(() -> method.invoke(proxiedService, toArgs(serializer, arguments)));
-    while (true) {
+  private AutoCloseable createKeepAliveTask(UUID requestID, Method method, JsonGenerator generator) {
+    CountDownLatch closeLatch = new CountDownLatch(1);
+    CountDownLatch finishedLatch = new CountDownLatch(1);
+    executorService.submit(() -> {
       try {
-        return future.get(timeBetweenKeepAlives, TimeUnit.MILLISECONDS);
-      } catch (TimeoutException e) {
-        //keepalive
-        generator.writeRaw(" ");
-        totalKeepAliveCount.increment();
-        if (LOGGER.isDebug()) {
-          LOGGER.debug("<< keepalive callID=%s method=%s", requestID, method);
+        //keep doing keepalive until the latch is released
+        while (!closeLatch.await(timeBetweenKeepAlives, TimeUnit.MILLISECONDS)) {
+          if (LOGGER.isDebug()) {
+            LOGGER.debug("<< keepalive callID=%s method=%s", requestID, method);
+          }
+          generator.writeRaw(" ");
+          totalKeepAliveCount.increment();
+          set(debugListeners).forEach(l -> l.keepAliveSent(requestID));
         }
-        set(debugListeners).forEach(l -> l.keepAliveSent(requestID));
+      } catch (Exception e) {
+        LOGGER.error(e, "Error sending keepAlive");
+      } finally {
+        //make sure to release finishedLatch to let the closeable result return on close()
+        finishedLatch.countDown();
       }
-    }
+    });
+    return () -> {
+      closeLatch.countDown();
+      //wait for this task to end before returning, to ensure that the keepalive task stops sending keepalives before results are written
+      tryTo(()->finishedLatch.await(100, TimeUnit.MILLISECONDS));
+    };
   }
 
   private boolean isUndeclaredException(Throwable e) {

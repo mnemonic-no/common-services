@@ -3,6 +3,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.5.3] - 2024-02-29
+### Changed
+ARGUS-42087
+- The current serviceproxy implementation opens the request session in a different thread than the thread used to execute the actual method, causing the method invocation to open its own session instead, which is then not kept open after the method is done.
+- This change runs the method execution using the request thread, and runs the keepalive generation in a separate thread.
+
+## [0.5.2] - 2024-02-15
+### Changed
+ARGUS-41771 
+- Fix resolving of primitive types in ServiceInvocationHandler
+
+## [0.5.1] - 2023-01-28
+### Changed
+ARGUS-40424 
+- Small improvements for API proxy
+
+## [0.5.0] - 2023-01-28
+### Changed
+ARGUS-40424 
+- Implement api proxy
+
 ## [0.4.0] - 2023-09-29
 ### Changed
 ARGUSUSER-6576
