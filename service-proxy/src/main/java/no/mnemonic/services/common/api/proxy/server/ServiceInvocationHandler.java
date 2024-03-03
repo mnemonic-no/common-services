@@ -70,6 +70,8 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
   private final LongAdder totalRequestCount = new LongAdder();
   private final LongAdder totalKeepAliveCount = new LongAdder();
   private final LongAdder totalRequestTimeMillis = new LongAdder();
+  private final LongAdder totalSimpleRequests = new LongAdder();
+  private final LongAdder totalStreamingRequests = new LongAdder();
   private final Set<UUID> ongoingRequests = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
   public int getOngoingRequestCount() {
@@ -80,6 +82,8 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
   public Metrics getMetrics() throws MetricException {
     return new MetricsData()
         .addData("total.request.count", totalRequestCount)
+        .addData("total.request.streaming.count", totalStreamingRequests)
+        .addData("total.request.simple.count", totalSimpleRequests)
         .addData("total.keepalive.count", totalKeepAliveCount)
         .addData("total.request.time.ms", totalRequestTimeMillis);
   }
@@ -96,6 +100,7 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
       @NonNull ServiceRequestMessage request,
       HttpServletResponse httpResponse
   ) throws Exception {
+    totalSimpleRequests.increment();
     Method method = getMethod(methodName, request);
     handleMethodInvocation(method, request, httpResponse, this::writeSingleResponse);
   }
@@ -113,6 +118,7 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
       @NonNull ServiceRequestMessage request,
       HttpServletResponse httpResponse
   ) throws Exception {
+    totalStreamingRequests.increment();
     Method method = getMethod(methodName, request);
     if (!ResultSet.class.isAssignableFrom(method.getReturnType())) {
       throw new IllegalStateException("Cannot write streaming for non-resultset returntype");
@@ -214,6 +220,7 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
   private void writeException(UUID requestID, Serializer serializer, JsonGenerator generator, InvocationTargetException invocationException) throws IOException {
     Throwable resultingException = invocationException.getTargetException();
     if (isUndeclaredException(resultingException)) {
+      LOGGER.error(resultingException, "Caught undeclared exception");
       resultingException = new IllegalStateException("Caught undeclared exception: " + resultingException.getMessage());
     }
     generator.writeRaw(MAPPER.writeValueAsString(createException(requestID, serializer, (Exception) resultingException)));

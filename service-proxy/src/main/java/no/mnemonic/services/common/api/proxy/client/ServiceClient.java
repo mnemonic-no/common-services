@@ -17,7 +17,6 @@ import java.lang.reflect.Proxy;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
 /**
@@ -55,9 +54,6 @@ public class ServiceClient<T extends Service> implements MetricAspect {
   private final AtomicReference<T> proxy = new AtomicReference<>();
   private final AtomicReference<ClientV1InvocationHandler<T>> handler = new AtomicReference<>();
 
-  private final LongAdder requestCounter = new LongAdder();
-  private final LongAdder totalRequestTime = new LongAdder();
-
   @Override
   public Metrics getMetrics() throws MetricException {
     MetricsGroup group = new MetricsGroup();
@@ -92,8 +88,6 @@ public class ServiceClient<T extends Service> implements MetricAspect {
 
   private ClientV1InvocationHandler<T> createHandler() {
     return ClientV1InvocationHandler.<T>builder()
-        .setTotalRequestTime(totalRequestTime)
-        .setRequests(requestCounter)
         .setPriority(this::determinePriority)
         .setServiceContext(new ServiceContextImpl())
         .setHttpClient(v1HttpClient)

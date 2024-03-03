@@ -2,15 +2,20 @@ package no.mnemonic.services.common.api.proxy.client;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import lombok.CustomLog;
 import lombok.RequiredArgsConstructor;
 import no.mnemonic.commons.utilities.collections.SetUtils;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 
+import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
+
 @RequiredArgsConstructor
+@CustomLog
 public class ClientResultSet<T> implements ResultSet<T> {
 
   private final Serializer serializer;
@@ -18,6 +23,7 @@ public class ClientResultSet<T> implements ResultSet<T> {
   private final int limit;
   private final int offset;
   private final JsonParser data;
+  private final Closeable onClose;
 
   private boolean closed;
 
@@ -68,9 +74,13 @@ public class ClientResultSet<T> implements ResultSet<T> {
 
   @Override
   public void close() {
+    if (closed) return;
     try {
       data.close();
       closed = true;
+      if (onClose != null) {
+        tryTo(onClose::close, e -> LOGGER.error(e, "Error closing resource"));
+      }
     } catch (IOException e) {
       throw new IllegalStateException("Error closing stream", e);
     }

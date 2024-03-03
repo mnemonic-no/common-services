@@ -16,7 +16,6 @@ import no.mnemonic.services.common.api.proxy.messages.ServiceRequestMessage;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 
-import java.io.InputStream;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -53,16 +52,19 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
   @NonNull
   private final Serializer serializer;
   @NonNull
-  private final LongAdder requests;
-  @NonNull
-  private final LongAdder totalRequestTime;
-  @NonNull
   private final Map<Class<?>, Function<ResultSet<?>, ? extends ResultSet<?>>> extenderFunctions;
+
+  private final LongAdder requests = new LongAdder();
+  private final LongAdder resultOK = new LongAdder();
+  private final LongAdder resultErrors = new LongAdder();
+  private final LongAdder totalRequestTime = new LongAdder();
 
   @Override
   public Metrics getMetrics() throws MetricException {
     return new MetricsData()
             .addData("requests", requests)
+            .addData("resultOK", resultOK)
+            .addData("resultErrors", resultErrors)
             .addData("total.request.time.ms", totalRequestTime);
   }
 
@@ -83,7 +85,12 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
     // try invoking
     requests.increment();
     try (TimerContext ignored = TimerContext.timerMillis(totalRequestTime::add)) {
-      return invoke(method, arguments);
+      Object result = invoke(method, arguments);
+      resultOK.increment();
+      return result;
+    } catch (Throwable t) {
+      resultErrors.increment();
+      throw t;
     }
   }
 
@@ -115,7 +122,7 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
               request.getPriority(),
               request
       );
-      return handleResultSet(method, response.getEntity().getContent());
+      return handleResultSet(method, response);
     } else {
       try (ClassicHttpResponse response = httpClient.request(
               proxyInterface.getName(),
@@ -130,15 +137,15 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
 
   }
 
-  private <R> ResultSet<R> handleResultSet(Method invokedMethod, InputStream response) throws Exception {
+  private <R> ResultSet<R> handleResultSet(Method invokedMethod, ClassicHttpResponse response) throws Exception {
     if (invokedMethod.getReturnType().equals(ResultSet.class)) {
-      return new ResultSetParser(serializer).parse(response);
+      return new ResultSetParser(serializer).parse(response.getEntity().getContent(), response);
     } else {
       //if the declared method returns a subclass of ResultSet, we may need an extender function
       Function<ResultSet<?>, ? extends ResultSet<?>> extender = extenderFunctions.computeIfAbsent(invokedMethod.getReturnType(), this::resolveExtenderFunction);
       //extend the declared return type to the correct subclass
       //noinspection unchecked
-      return (ResultSet<R>) extender.apply(new ResultSetParser(serializer).parse(response));
+      return (ResultSet<R>) extender.apply(new ResultSetParser(serializer).parse(response.getEntity().getContent(), response));
     }
   }
 
