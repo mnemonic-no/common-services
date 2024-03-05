@@ -19,6 +19,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static no.mnemonic.commons.utilities.ObjectUtils.ifNull;
+import static no.mnemonic.services.common.api.ServiceContext.Priority.standard;
+
 /**
  * Service Client which provides a client-side proxy to the targeted Service interface.
  * The client will intercept all service invocation methods,
@@ -121,6 +124,21 @@ public class ServiceClient<T extends Service> implements MetricAspect {
     } else {
       return defaultPriority;
     }
+  }
+
+  /**
+   * Allow setting the priority for ALL ServiceMessageClients in this VM.
+   * This priority will override the default priority set on the client, but will be overridden by
+   * the threadPriority or the nextPriority if set on any specific client.
+   *
+   * @param priority the priority to use for the current thread, if not overridden by threadPriority or nextPriority
+   */
+  public static void setGlobalThreadPriority(ServiceContext.Priority priority) {
+    globalThreadPriority.set(priority);
+  }
+
+  public static ServiceContext.Priority getGlobalThreadPriority() {
+    return ifNull(globalThreadPriority.get(), standard);
   }
 
   public static class ServiceClientBuilder<T extends Service> {
