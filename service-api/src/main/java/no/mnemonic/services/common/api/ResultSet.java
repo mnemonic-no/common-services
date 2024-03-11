@@ -1,12 +1,13 @@
 package no.mnemonic.services.common.api;
 
+import java.io.Closeable;
 import java.util.Iterator;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-public interface ResultSet<T> extends Iterable<T> {
+public interface ResultSet<T> extends Iterable<T>, Closeable {
 
   int getCount();
 
@@ -18,6 +19,7 @@ public interface ResultSet<T> extends Iterable<T> {
    * Allow client to signal that this resultset may be closed.
    * The implementation may choose to ignore that.
    */
+  @Override
   default void close() {}
 
   /**

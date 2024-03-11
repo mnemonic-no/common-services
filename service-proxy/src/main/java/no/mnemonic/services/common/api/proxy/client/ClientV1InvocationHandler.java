@@ -1,5 +1,6 @@
 package no.mnemonic.services.common.api.proxy.client;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.CustomLog;
 import lombok.NonNull;
@@ -8,6 +9,7 @@ import no.mnemonic.commons.metrics.MetricException;
 import no.mnemonic.commons.metrics.Metrics;
 import no.mnemonic.commons.metrics.MetricsData;
 import no.mnemonic.commons.metrics.TimerContext;
+import no.mnemonic.commons.utilities.collections.CollectionUtils;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.ServiceContext;
@@ -16,14 +18,20 @@ import no.mnemonic.services.common.api.proxy.messages.ServiceRequestMessage;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static no.mnemonic.commons.utilities.collections.SetUtils.set;
+import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
 
 /**
  * Invocation handler which converts the request to a request message,
@@ -53,6 +61,8 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
   private final Serializer serializer;
   @NonNull
   private final Map<Class<?>, Function<ResultSet<?>, ? extends ResultSet<?>>> extenderFunctions;
+
+  private static final ThreadLocal<Set<CloseableWrapper>> threadCloseables = new ThreadLocal<>();
 
   private final LongAdder requests = new LongAdder();
   private final LongAdder resultOK = new LongAdder();
@@ -92,6 +102,18 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
       resultErrors.increment();
       throw t;
     }
+  }
+
+  static void closeThreadResources() {
+    Set<CloseableWrapper> threadSet = threadCloseables.get();
+    if (CollectionUtils.isEmpty(threadSet)) {
+      return;
+    }
+    for (CloseableWrapper closeable : threadSet) {
+      LOGGER.warning("Closing resource not closed by normal operation");
+      tryTo(closeable::close, e -> LOGGER.warning(e, "Error closing resource"));
+    }
+    threadSet.clear();
   }
 
   //private methods
@@ -138,14 +160,15 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
   }
 
   private <R> ResultSet<R> handleResultSet(Method invokedMethod, ClassicHttpResponse response) throws Exception {
+    Closeable resultSetCloser = wrapCloseable(response);
     if (invokedMethod.getReturnType().equals(ResultSet.class)) {
-      return new ResultSetParser(serializer).parse(response.getEntity().getContent(), response);
+      return new ResultSetParser(serializer).parse(response.getEntity().getContent(), resultSetCloser);
     } else {
       //if the declared method returns a subclass of ResultSet, we may need an extender function
       Function<ResultSet<?>, ? extends ResultSet<?>> extender = extenderFunctions.computeIfAbsent(invokedMethod.getReturnType(), this::resolveExtenderFunction);
       //extend the declared return type to the correct subclass
       //noinspection unchecked
-      return (ResultSet<R>) extender.apply(new ResultSetParser(serializer).parse(response.getEntity().getContent(), response));
+      return (ResultSet<R>) extender.apply(new ResultSetParser(serializer).parse(response.getEntity().getContent(), resultSetCloser));
     }
   }
 
@@ -158,6 +181,35 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
       return resultSetExtention.extender().getDeclaredConstructor().newInstance();
     } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
       throw new IllegalStateException("Declared resultset extention function could not be instantiated: " + resultSetExtention.extender(), e);
+    }
+  }
+
+  /**
+   * Create a wrapper around closeable which is registered in this threadLocal
+   *
+   * @param closeable
+   * @return
+   */
+  private Closeable wrapCloseable(Closeable closeable) {
+    Set<CloseableWrapper> threadSet = threadCloseables.get();
+    if (threadSet == null) {
+      threadSet = set();
+      threadCloseables.set(threadSet);
+    }
+    CloseableWrapper wrapper = new CloseableWrapper(closeable);
+    threadSet.add(wrapper);
+    return wrapper;
+  }
+
+  @AllArgsConstructor
+  private static class CloseableWrapper implements Closeable {
+    final Closeable wrapped;
+
+    @Override
+    public void close() throws IOException {
+      wrapped.close();
+      if (threadCloseables.get() == null) return;
+      threadCloseables.get().remove(this);
     }
   }
 

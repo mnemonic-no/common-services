@@ -3,6 +3,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.5.6] - 2024-03-11
+### Changed
+ARGUS-42345
+- Added `ServiceClient.closeThreadResources()` to allow client threads to close HTTP client resources
+which are dangling after SPI invocations. 
+- Added implicit invocation of `ServiceClient.closeThreadResources()` at the end of every
+service proxy server-side handling in `ServiceV1Servlet`, to ensure that any downstream clients are closed
+when the handler is done.
+
 ## [0.5.3] - 2024-02-29
 ### Changed
 ARGUS-42087

@@ -66,12 +66,30 @@ public class ServiceClient<T extends Service> implements MetricAspect {
     return group;
   }
 
+  /**
+   * Usually, the HTTP client for ResultSet responses from the ServiceClient proxy are
+   * kept open until the ResultSet is iterated until closure, or must be closed by the client.
+   * Therefore, the resource may not be properly closed.
+   *
+   * Invoke this method when thread is done with all requests, to ensure that any dangling thread resources
+   * (which have not been closed already) are closed.
+   */
+  public static void closeThreadResources() {
+    ClientV1InvocationHandler.closeThreadResources();
+  }
+
+  /**
+   * @return the ServiceClient proxy instance for the configured interface.
+   * Invoking methods on the returned object will invoke the service client proxy.
+   */
   public T getInstance() {
     return proxy.updateAndGet(p -> {
       if (p == null) p = createProxy();
       return p;
     });
   }
+
+  //private methods
 
   private T createProxy() {
     //noinspection unchecked

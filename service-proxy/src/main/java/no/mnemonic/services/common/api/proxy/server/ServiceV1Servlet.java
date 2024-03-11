@@ -7,6 +7,7 @@ import lombok.CustomLog;
 import lombok.NonNull;
 import no.mnemonic.commons.logging.LocalLoggingContext;
 import no.mnemonic.services.common.api.proxy.Utils;
+import no.mnemonic.services.common.api.proxy.client.ServiceClient;
 import no.mnemonic.services.common.api.proxy.messages.ServiceRequestMessage;
 
 import javax.servlet.http.HttpServlet;
@@ -69,6 +70,9 @@ public class ServiceV1Servlet extends HttpServlet {
     } catch (Exception e) {
       LOGGER.error(e, "Error invoking method");
       resp.setStatus(Utils.HTTP_ERROR_RESPONSE);
+    } finally {
+      //ensure all downstream clients are closed when this thread is done
+      ServiceClient.closeThreadResources();
     }
     resp.flushBuffer();
   }
