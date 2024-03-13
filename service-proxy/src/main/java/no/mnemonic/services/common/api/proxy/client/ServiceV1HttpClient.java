@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import lombok.Builder;
 import lombok.CustomLog;
 import lombok.NonNull;
+import no.mnemonic.commons.utilities.collections.SetUtils;
 import no.mnemonic.services.common.api.ServiceContext;
+import no.mnemonic.services.common.api.ServiceTimeOutException;
 import no.mnemonic.services.common.api.proxy.messages.ServiceRequestMessage;
 import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -84,10 +86,15 @@ public class ServiceV1HttpClient {
         LOGGER.debug("Invoking Service API %s", uri);
       }
       ClassicHttpResponse response = httpClient.get().executeOpen(host, httpRequest, null);
-      if (response.getCode() >= 400) {
-        throw new IllegalStateException("Unexpected response from HTTP proxy: " + response.getReasonPhrase());
+      if (SetUtils.in(response.getCode(), 503, 504)) {
+        response.close();
+        throw new ServiceTimeOutException(response.getReasonPhrase(), service);
+      } else if (response.getCode() >= 400) {
+        response.close();
+        throw new IllegalStateException(String.format("Unexpected response (%d) from HTTP proxy: %s", response.getCode(), response.getReasonPhrase()));
+      } else {
+        return response;
       }
-      return response;
     } catch (IOException | URISyntaxException e) {
       throw new IllegalStateException("Error invoking HTTP client", e);
     }

@@ -118,6 +118,10 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
 
   //private methods
 
+  /**
+   * @return the deserialized response object.
+   * If the response object is instance of Closeable, clients must close it!
+   */
   private Object invoke(Method method, Object[] arguments) throws Exception {
     //noinspection unused
 
@@ -136,7 +140,6 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
     }
 
     if (ResultSet.class.isAssignableFrom(method.getReturnType())) {
-      //noinspection resource handled by ResultSetParser
       ClassicHttpResponse response = httpClient.request(
               proxyInterface.getName(),
               method.getName(),
