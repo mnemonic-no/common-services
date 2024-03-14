@@ -1,7 +1,6 @@
 package no.mnemonic.services.common.api.proxy.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import lombok.AllArgsConstructor;
 import lombok.CustomLog;
 import lombok.NonNull;
@@ -22,10 +21,10 @@ import static no.mnemonic.services.common.api.proxy.Utils.fromTypes;
 @CustomLog
 public class ServiceMessageConverter {
 
-  private static final ObjectMapper MAPPER = JsonMapper.builder().build();
-
   @NonNull
   private final Serializer serializer;
+  @NonNull
+  private final ObjectMapper mapper;
 
   /**
    * Convert a request into a serializable request message
@@ -50,7 +49,6 @@ public class ServiceMessageConverter {
         .build();
   }
 
-
   /**
    * Reads the response message from the HTTP response
    * @param response the HTTP response
@@ -58,7 +56,7 @@ public class ServiceMessageConverter {
    * @throws Exception the deserialized exception, if the response contained an exception
    */
   public Object readResponseMessage(InputStream response) throws Exception {
-    ServiceResponseMessage responseMessage = MAPPER.readValue(response, ServiceResponseMessage.class);
+    ServiceResponseMessage responseMessage = mapper.readValue(response, ServiceResponseMessage.class);
     if (responseMessage.getException() != null) {
       if (LOGGER.isDebug()) LOGGER.debug(">> received exception [callID=%s]", responseMessage.getRequestID());
       throw serializer.<Exception>deserializeB64(responseMessage.getException());

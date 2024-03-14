@@ -35,20 +35,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ServiceProxyTest {
 
   private static final ObjectMapper MAPPER = JsonMapper.builder().build();
   public static final String BASE_URL = "http://localhost:9001";
+  public static final int MAX_READ_STRING_LENGTH = 100_000;
 
   private final ExecutorService executorService = Executors.newCachedThreadPool();
 
@@ -76,6 +75,7 @@ class ServiceProxyTest {
             .build();
     proxy = ServiceProxy.builder()
             .addInvocationHandler(TestService.class, invocationHandler)
+            .setReadMaxStringLength(MAX_READ_STRING_LENGTH)
             .build();
     proxy.startComponent();
   }
@@ -118,6 +118,22 @@ class ServiceProxyTest {
     assertEquals(Utils.HTTP_OK_RESPONSE, response.code);
     verify(service).getString("stringArg");
     assertInstanceOf(TestException.class, readException(response));
+  }
+
+  @Test
+  void testLargeMessage() throws IOException, TestException {
+    String largeString = Stream.generate(() -> "a").limit(MAX_READ_STRING_LENGTH/2).collect(Collectors.joining());
+    Response response = invoke(false, "getString", largeString);
+    assertEquals(Utils.HTTP_OK_RESPONSE, response.code);
+    verify(service).getString(largeString);
+  }
+
+  @Test
+  void testTooLargeMessage() throws IOException, TestException {
+    String largeString = Stream.generate(() -> "a").limit(MAX_READ_STRING_LENGTH+10).collect(Collectors.joining());
+    Response response = invoke(false, "getString", largeString);
+    assertEquals(Utils.HTTP_ERROR_RESPONSE, response.code);
+    verify(service, never()).getString(any());
   }
 
   private <T> T readResponse(Response response) throws IOException {

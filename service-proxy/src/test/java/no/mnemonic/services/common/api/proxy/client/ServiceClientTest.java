@@ -14,16 +14,14 @@ import no.mnemonic.services.common.api.proxy.messages.ServiceResponseMessage;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 import no.mnemonic.services.common.api.proxy.serializer.XStreamSerializer;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.post;
-import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
-import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.apache.hc.core5.http.HttpHeaders.CONTENT_TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,6 +32,7 @@ class ServiceClientTest {
   private static final String HTTP_LOCALHOST = "http://localhost";
   private static final ObjectMapper MAPPER = JsonMapper.builder().build();
   public static final String APPLICATION_JSON = "application/json";
+  public static final int MAX_STRING_LENGTH = 10_0000;
 
   private static WireMockServer SERVER;
   private ServiceV1HttpClient httpClient;
@@ -57,15 +56,29 @@ class ServiceClientTest {
   @Test
   void testSimpleRequest() throws IOException, TestException {
     mockSingleResponse("getString", "response");
-    Assertions.assertEquals("response", proxy().getString("arg"));
+    assertEquals("response", proxy().getString("arg"));
     SERVER.verify(postRequestedFor(urlEqualTo("/service/v1/no.mnemonic.services.common.api.proxy.TestService/single/getString")));
+  }
+
+  @Test
+  void testLargeResponse() throws IOException, TestException {
+    String largeString = Stream.generate(() -> "a").limit(MAX_STRING_LENGTH /2).collect(Collectors.joining());
+    mockSingleResponse("getString", largeString);
+    assertEquals(largeString, proxy().getString("arg"));
+  }
+
+  @Test
+  void testTooLargeResponse() throws IOException {
+    String largeString = Stream.generate(() -> "a").limit(MAX_STRING_LENGTH * 2).collect(Collectors.joining());
+    mockSingleResponse("getString", largeString);
+    assertThrows(RuntimeException.class, ()->proxy().getString("arg"));
   }
 
   @Test
   void testResultSetRequest() throws IOException, TestException {
     mockResultSetResponse("getResultSet", 2, 5, 10, "response1", "response2");
     ResultSet<String> result = proxy().getResultSet("arg");
-    Assertions.assertEquals(ListUtils.list("response1", "response2"), ListUtils.list(result.iterator()));
+    assertEquals(ListUtils.list("response1", "response2"), ListUtils.list(result.iterator()));
     assertEquals(2, result.getCount());
     assertEquals(5, result.getLimit());
     assertEquals(10, result.getOffset());
@@ -187,6 +200,7 @@ class ServiceClientTest {
   private ServiceClient.ServiceClientBuilder<TestService> proxyBuilder() {
     return ServiceClient.<TestService>builder()
         .setProxyInterface(TestService.class)
+        .setReadMaxStringSize(MAX_STRING_LENGTH)
         .setV1HttpClient(httpClient)
         .setSerializer(serializer);
   }

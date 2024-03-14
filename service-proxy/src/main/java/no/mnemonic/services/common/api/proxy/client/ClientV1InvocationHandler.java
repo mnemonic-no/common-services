@@ -1,5 +1,6 @@
 package no.mnemonic.services.common.api.proxy.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.CustomLog;
@@ -61,6 +62,8 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
   private final Serializer serializer;
   @NonNull
   private final Map<Class<?>, Function<ResultSet<?>, ? extends ResultSet<?>>> extenderFunctions;
+  @NonNull
+  private final ObjectMapper mapper;
 
   private static final ThreadLocal<Set<CloseableWrapper>> threadCloseables = new ThreadLocal<>();
 
@@ -125,7 +128,7 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
   private Object invoke(Method method, Object[] arguments) throws Exception {
     //noinspection unused
 
-    ServiceMessageConverter serviceMessageConverter = new ServiceMessageConverter(serializer);
+    ServiceMessageConverter serviceMessageConverter = new ServiceMessageConverter(serializer, mapper);
 
     UUID requestID = UUID.randomUUID();
     ServiceRequestMessage request = serviceMessageConverter.convert(requestID, method, arguments, priority.get());
@@ -189,9 +192,6 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
 
   /**
    * Create a wrapper around closeable which is registered in this threadLocal
-   *
-   * @param closeable
-   * @return
    */
   private Closeable wrapCloseable(Closeable closeable) {
     Set<CloseableWrapper> threadSet = threadCloseables.get();
@@ -215,5 +215,6 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
       threadCloseables.get().remove(this);
     }
   }
+
 
 }

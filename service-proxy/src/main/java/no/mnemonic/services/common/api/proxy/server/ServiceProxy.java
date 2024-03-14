@@ -1,6 +1,9 @@
 package no.mnemonic.services.common.api.proxy.server;
 
 
+import com.fasterxml.jackson.core.StreamReadConstraints;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import lombok.Builder;
 import lombok.CustomLog;
 import lombok.NonNull;
@@ -61,6 +64,8 @@ import java.util.concurrent.atomic.AtomicReference;
 @CustomLog
 public class ServiceProxy implements LifecycleAspect {
 
+  private static final int DEFAULT_MAX_STRING_LENGTH = 50_000_000;
+
   @Builder.Default
   private final int bulkPort = 9001;
   @Builder.Default
@@ -73,6 +78,8 @@ public class ServiceProxy implements LifecycleAspect {
   private final int standardThreads = 5;
   @Builder.Default
   private final int expediteThreads = 5;
+  @Builder.Default
+  private final int readMaxStringLength = DEFAULT_MAX_STRING_LENGTH;
 
   @NonNull
   private final Map<Class<?>, ServiceInvocationHandler<?>> invocationHandlers;
@@ -87,6 +94,7 @@ public class ServiceProxy implements LifecycleAspect {
     ServletHolder v1Servlet = new ServletHolder();
     v1Servlet.setServlet(
         ServiceV1Servlet.builder()
+            .setMapper(createMapper())
             .setInvocationHandlers(MapUtils.map(invocationHandlers.entrySet(), e->MapUtils.pair(e.getKey().getName(), e.getValue())))
             .build()
     );
@@ -120,6 +128,16 @@ public class ServiceProxy implements LifecycleAspect {
     } finally {
       server.set(null);
     }
+  }
+
+  private ObjectMapper createMapper() {
+    ObjectMapper mapper = JsonMapper.builder().build();
+    mapper.getFactory().setStreamReadConstraints(
+            StreamReadConstraints.builder()
+                    .maxStringLength(readMaxStringLength)
+                    .build()
+    );
+    return mapper;
   }
 
   private void addConnector(Server server, int threads, int port) {

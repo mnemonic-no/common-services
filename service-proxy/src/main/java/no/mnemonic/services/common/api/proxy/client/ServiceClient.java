@@ -1,5 +1,8 @@
 package no.mnemonic.services.common.api.proxy.client;
 
+import com.fasterxml.jackson.core.StreamReadConstraints;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import lombok.Builder;
 import lombok.NonNull;
 import no.mnemonic.commons.logging.Logger;
@@ -38,6 +41,7 @@ import static no.mnemonic.services.common.api.ServiceContext.Priority.standard;
 public class ServiceClient<T extends Service> implements MetricAspect {
 
   private static final Logger LOGGER = Logging.getLogger(ServiceClient.class);
+  private static final int DEFAULT_MAX_STRING_LENGTH = 50_000_000;
 
   @NonNull
   private final Class<T> proxyInterface;
@@ -49,6 +53,8 @@ public class ServiceClient<T extends Service> implements MetricAspect {
   private final Serializer serializer;
   @NonNull
   private final Map<Class<?>, Function<ResultSet<?>, ? extends ResultSet<?>>> extenderFunctions;
+  @Builder.Default
+  private final int readMaxStringSize = DEFAULT_MAX_STRING_LENGTH;
 
   private final ThreadLocal<ServiceContext.Priority> threadPriority = new ThreadLocal<>();
   private final ThreadLocal<ServiceContext.Priority> nextPriority = new ThreadLocal<>();
@@ -115,7 +121,16 @@ public class ServiceClient<T extends Service> implements MetricAspect {
         .setProxyInterface(proxyInterface)
         .setSerializer(serializer)
         .setExtenderFunctions(extenderFunctions)
+        .setMapper(createMapper())
         .build();
+  }
+
+  private ObjectMapper createMapper() {
+    ObjectMapper mapper = JsonMapper.builder().build();
+    mapper.getFactory().setStreamReadConstraints(
+            StreamReadConstraints.builder().maxStringLength(readMaxStringSize).build()
+    );
+    return mapper;
   }
 
   private class ServiceContextImpl implements ServiceContext {

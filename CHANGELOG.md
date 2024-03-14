@@ -3,6 +3,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.5.8] - 2024-03-13
+### Changed
+ARGUS-42553
+- Add `ServiceClient.setReadMaxStringLength(int)` and `ServiceProxy.setReadMaxStringLength(int)` 
+to allow configuring max SPI document size
+
+## [0.5.7] - 2024-03-12
+### Changed
+ARGUS-42524
+- Improve error handling for gateway timeout
+
 ## [0.5.6] - 2024-03-11
 ### Changed
 ARGUS-42345
