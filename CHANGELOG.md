@@ -3,6 +3,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.0] - 2024-03-20
+### Changed
+ARGUS-39520
+- Upgraded to Jetty 10
+- Note that this upgrade requires clients using the `service-proxy` to also move to Jetty10.
+
 ## [0.5.9] - 2024-03-20
 ### Changed
 ARGUS-42621
