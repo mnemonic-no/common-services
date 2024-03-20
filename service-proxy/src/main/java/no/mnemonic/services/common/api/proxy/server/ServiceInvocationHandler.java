@@ -196,6 +196,7 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
             LOGGER.debug("<< keepalive callID=%s method=%s", requestID, method);
           }
           generator.writeRaw(" ");
+          generator.flush();
           totalKeepAliveCount.increment();
           set(debugListeners).forEach(l -> l.keepAliveSent(requestID));
         }

@@ -200,7 +200,7 @@ class ServiceClientTest {
   private ServiceClient.ServiceClientBuilder<TestService> proxyBuilder() {
     return ServiceClient.<TestService>builder()
         .setProxyInterface(TestService.class)
-        .setReadMaxStringSize(MAX_STRING_LENGTH)
+        .setReadMaxStringLength(MAX_STRING_LENGTH)
         .setV1HttpClient(httpClient)
         .setSerializer(serializer);
   }

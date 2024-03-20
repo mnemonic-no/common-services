@@ -168,13 +168,13 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
   private <R> ResultSet<R> handleResultSet(Method invokedMethod, ClassicHttpResponse response) throws Exception {
     Closeable resultSetCloser = wrapCloseable(response);
     if (invokedMethod.getReturnType().equals(ResultSet.class)) {
-      return new ResultSetParser(serializer).parse(response.getEntity().getContent(), resultSetCloser);
+      return new ResultSetParser(mapper, serializer).parse(response.getEntity().getContent(), resultSetCloser);
     } else {
       //if the declared method returns a subclass of ResultSet, we may need an extender function
       Function<ResultSet<?>, ? extends ResultSet<?>> extender = extenderFunctions.computeIfAbsent(invokedMethod.getReturnType(), this::resolveExtenderFunction);
       //extend the declared return type to the correct subclass
       //noinspection unchecked
-      return (ResultSet<R>) extender.apply(new ResultSetParser(serializer).parse(response.getEntity().getContent(), resultSetCloser));
+      return (ResultSet<R>) extender.apply(new ResultSetParser(mapper, serializer).parse(response.getEntity().getContent(), resultSetCloser));
     }
   }
 

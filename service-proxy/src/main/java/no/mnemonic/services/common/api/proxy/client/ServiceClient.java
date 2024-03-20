@@ -54,7 +54,7 @@ public class ServiceClient<T extends Service> implements MetricAspect {
   @NonNull
   private final Map<Class<?>, Function<ResultSet<?>, ? extends ResultSet<?>>> extenderFunctions;
   @Builder.Default
-  private final int readMaxStringSize = DEFAULT_MAX_STRING_LENGTH;
+  private final int readMaxStringLength = DEFAULT_MAX_STRING_LENGTH;
 
   private final ThreadLocal<ServiceContext.Priority> threadPriority = new ThreadLocal<>();
   private final ThreadLocal<ServiceContext.Priority> nextPriority = new ThreadLocal<>();
@@ -128,7 +128,7 @@ public class ServiceClient<T extends Service> implements MetricAspect {
   private ObjectMapper createMapper() {
     ObjectMapper mapper = JsonMapper.builder().build();
     mapper.getFactory().setStreamReadConstraints(
-            StreamReadConstraints.builder().maxStringLength(readMaxStringSize).build()
+            StreamReadConstraints.builder().maxStringLength(readMaxStringLength).build()
     );
     return mapper;
   }

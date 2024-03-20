@@ -3,7 +3,6 @@ package no.mnemonic.services.common.api.proxy.client;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import lombok.AllArgsConstructor;
 import lombok.CustomLog;
 import no.mnemonic.commons.utilities.collections.SetUtils;
@@ -20,8 +19,7 @@ import java.io.InputStream;
 @AllArgsConstructor
 public class ResultSetParser {
 
-  private static final ObjectMapper MAPPER = JsonMapper.builder().build();
-
+  private final ObjectMapper mapper;
   private final Serializer serializer;
 
   /***
@@ -35,7 +33,7 @@ public class ResultSetParser {
    */
   public <T> ClientResultSet<T> parse(InputStream response, Closeable onClose) throws Exception {
     try {
-      JsonParser parser = MAPPER.createParser(response);
+      JsonParser parser = mapper.createParser(response);
       assertThat(parser.nextToken() == JsonToken.START_OBJECT, "Expected start-of-object");
 
       int count, limit, offset;

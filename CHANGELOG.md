@@ -3,6 +3,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.5.9] - 2024-03-20
+### Changed
+ARGUS-42621
+- Flush response buffer on ServiceProxy keepalive, to avoid gateway timeout
+- Use per-server configured ObjectMapper in ResultSetParser to configure max size for parsing large ResultSet response objects
+
 ## [0.5.8] - 2024-03-13
 ### Changed
 ARGUS-42553
