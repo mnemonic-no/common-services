@@ -11,9 +11,11 @@ import no.mnemonic.services.common.api.ServiceTimeOutException;
 import no.mnemonic.services.common.api.proxy.messages.ServiceRequestMessage;
 import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.io.entity.StringEntity;
@@ -22,6 +24,7 @@ import org.apache.hc.core5.net.URIBuilder;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @CustomLog
@@ -33,6 +36,7 @@ public class ServiceV1HttpClient {
   private static final int DEFAULT_STANDARD_PORT = 9002;
   private static final int DEFAULT_EXPEDITE_PORT = 9003;
   private static final int DEFAULT_MAX_CONNECTIONS = 20;
+  private static final int DEFAULT_CONNECTION_TIMEOUT_SECONDS = 180;
 
   @NonNull
   private final String baseURI;
@@ -46,6 +50,8 @@ public class ServiceV1HttpClient {
   private final int expeditePort = DEFAULT_EXPEDITE_PORT;
   @Builder.Default
   private final int maxConnections = DEFAULT_MAX_CONNECTIONS;
+  @Builder.Default
+  private final long connectionTimeoutSeconds = DEFAULT_CONNECTION_TIMEOUT_SECONDS;
 
   private static final String PACKAGE_VERSION = ServiceV1HttpClient.class.getPackage().getImplementationVersion();
 
@@ -55,9 +61,13 @@ public class ServiceV1HttpClient {
     PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
     connectionManager.setDefaultMaxPerRoute(maxConnections);
     connectionManager.setMaxTotal(maxConnections);
-    httpClient.set(HttpClientBuilder.create()
-            .setConnectionManager(connectionManager)
-        .build()
+    httpClient.set(
+        HttpClientBuilder.create()
+                .setConnectionManager(connectionManager)
+                .setDefaultRequestConfig(RequestConfig.custom()
+                        .setConnectionRequestTimeout(connectionTimeoutSeconds, TimeUnit.SECONDS)
+                        .build())
+                .build()
     );
     return this;
   }
@@ -95,7 +105,11 @@ public class ServiceV1HttpClient {
       } else {
         return response;
       }
+    } catch (ConnectionRequestTimeoutException e) {
+      LOGGER.error(e, "Service request connection timeout");
+      throw new ServiceTimeOutException(e.getMessage(), service);
     } catch (IOException | URISyntaxException e) {
+      LOGGER.error(e, "Error invoking HTTP client");
       throw new IllegalStateException("Error invoking HTTP client", e);
     }
   }
