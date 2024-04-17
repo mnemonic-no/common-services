@@ -8,6 +8,11 @@ import lombok.Builder;
 import lombok.CustomLog;
 import lombok.NonNull;
 import no.mnemonic.commons.component.LifecycleAspect;
+import no.mnemonic.commons.metrics.MetricAspect;
+import no.mnemonic.commons.metrics.MetricException;
+import no.mnemonic.commons.metrics.Metrics;
+import no.mnemonic.commons.metrics.MetricsData;
+import no.mnemonic.commons.metrics.MetricsGroup;
 import no.mnemonic.commons.utilities.collections.MapUtils;
 import no.mnemonic.services.common.api.Service;
 import org.eclipse.jetty.server.HttpConnectionFactory;
@@ -15,11 +20,13 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
+import org.eclipse.jetty.util.thread.MonitoredQueuedThreadPool;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
 
 /**
  * Produces a proxy instance, listening on the specified port.
@@ -62,7 +69,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @Builder(setterPrefix = "set")
 @CustomLog
-public class ServiceProxy implements LifecycleAspect {
+public class ServiceProxy implements LifecycleAspect, MetricAspect {
 
   private static final int DEFAULT_MAX_STRING_LENGTH = 50_000_000;
 
@@ -85,6 +92,7 @@ public class ServiceProxy implements LifecycleAspect {
   private final Map<Class<?>, ServiceInvocationHandler<?>> invocationHandlers;
 
   private final AtomicReference<Server> server = new AtomicReference<>();
+  private final Map<Integer, MonitoredQueuedThreadPool> threadPools = new HashMap<>();
 
   @Override
   public void startComponent() {
@@ -102,9 +110,9 @@ public class ServiceProxy implements LifecycleAspect {
 
     server.setHandler(contextHandler);
 
-    addConnector(server, bulkThreads, bulkPort);
-    addConnector(server, standardThreads, standardPort);
-    addConnector(server, expediteThreads, expeditePort);
+    threadPools.put(bulkPort, addConnector(server, bulkThreads, bulkPort));
+    threadPools.put(standardPort, addConnector(server, standardThreads, standardPort));
+    threadPools.put(expeditePort, addConnector(server, expediteThreads, expeditePort));
 
     try {
       server.start();
@@ -114,6 +122,18 @@ public class ServiceProxy implements LifecycleAspect {
       throw new IllegalStateException("Error starting server", e);
     }
     this.server.set(server);
+  }
+
+  @Override
+  public Metrics getMetrics() {
+    MetricsGroup poolMetrics = new MetricsGroup();
+    this.threadPools.forEach((port, pool) -> {
+      tryTo(
+              ()->poolMetrics.addSubMetrics("port-" + port, createPoolMetrics(pool)),
+              e->LOGGER.warning(e,"Error adding metrics")
+      );
+    });
+    return poolMetrics;
   }
 
   @Override
@@ -130,6 +150,20 @@ public class ServiceProxy implements LifecycleAspect {
     }
   }
 
+  private MetricsData createPoolMetrics(MonitoredQueuedThreadPool pool) throws MetricException {
+    MetricsData data = new MetricsData();
+    data.addData("max.task.latency", pool.getMaxTaskLatency());
+    data.addData("avg.task.latency", pool.getAverageTaskLatency());
+    data.addData("idle.threads", pool.getIdleThreads());
+    data.addData("max.threads", pool.getMaxThreads());
+    data.addData("max.busy.threads", pool.getMaxBusyThreads());
+    data.addData("avg.queue.latency", pool.getAverageQueueLatency());
+    data.addData("max.queue.latency", pool.getMaxQueueLatency());
+    data.addData("max.queue.size", pool.getMaxQueueSize());
+    data.addData("utilization.rate", pool.getUtilizationRate());
+    return data;
+  }
+
   private ObjectMapper createMapper() {
     ObjectMapper mapper = JsonMapper.builder().build();
     mapper.getFactory().setStreamReadConstraints(
@@ -140,15 +174,16 @@ public class ServiceProxy implements LifecycleAspect {
     return mapper;
   }
 
-  private void addConnector(Server server, int threads, int port) {
+  private MonitoredQueuedThreadPool addConnector(Server server, int threads, int port) {
     int acceptors = 5;
     int selectors = 5;
     int totalThreads = acceptors + selectors + threads;
-    ExecutorService executor = Executors.newFixedThreadPool(totalThreads);
-    ServerConnector connector = new ServerConnector(server, executor, null, null, acceptors, selectors, new HttpConnectionFactory());
+    MonitoredQueuedThreadPool threadPool = new MonitoredQueuedThreadPool(totalThreads);
+    ServerConnector connector = new ServerConnector(server, threadPool, null, null, acceptors, selectors, new HttpConnectionFactory());
     connector.setPort(port);
     server.addConnector(connector);
     LOGGER.info("Adding connector on port %d", port);
+    return threadPool;
   }
 
   public static class ServiceProxyBuilder {
