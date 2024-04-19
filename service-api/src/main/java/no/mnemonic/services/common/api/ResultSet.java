@@ -1,13 +1,12 @@
 package no.mnemonic.services.common.api;
 
-import java.io.Closeable;
 import java.util.Iterator;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-public interface ResultSet<T> extends Iterable<T>, Closeable {
+public interface ResultSet<T> extends Iterable<T>, Resource {
 
   int getCount();
 

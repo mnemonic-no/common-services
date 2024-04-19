@@ -38,7 +38,9 @@ import java.util.concurrent.atomic.LongAdder;
 import static no.mnemonic.commons.utilities.ObjectUtils.ifNull;
 import static no.mnemonic.commons.utilities.collections.SetUtils.set;
 import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
-import static no.mnemonic.services.common.api.proxy.Utils.*;
+import static no.mnemonic.services.common.api.proxy.Utils.HTTP_OK_RESPONSE;
+import static no.mnemonic.services.common.api.proxy.Utils.toArgs;
+import static no.mnemonic.services.common.api.proxy.Utils.toTypes;
 
 /**
  * This handler deals with the actual invocation of methods on the proxied service,
@@ -164,7 +166,11 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
         set(debugListeners).forEach(l -> l.invocationSucceeded(requestID));
       } catch (InvocationTargetException e) {
         //since invocation is a method call, any exception is an InvocationTargetException
+        LOGGER.error(e, "Error invoking method");
         writeException(request.getRequestID(), serializer, generator, e);
+        set(debugListeners).forEach(l -> l.invocationFailed(requestID));
+      } catch (IOException e) {
+        LOGGER.error(e, "Error writing response");
         set(debugListeners).forEach(l -> l.invocationFailed(requestID));
       } catch (Throwable e) {
         LOGGER.error(e, "Unexpected exception");

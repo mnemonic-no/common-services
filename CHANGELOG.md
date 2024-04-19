@@ -3,6 +3,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.3] - 2024-04-18
+### Added
+ARGUSUSER-7540 
+- Ensure proper close of resources in ClientResultSet.
+- Define new `Resource` extending `Closeable` with `cancel()`
+- Extend ResultSet as `Resource`
+- Ensure cancelling of underlying `Resource` when `ClientResultSet` is cancelled.
+
+## [0.6.2] - 2024-04-17
+### Added
+ARGUS-43191 
+- Add thread pool metrics in `ServiceProxy` 
+
 ## [0.6.1] - 2024-04-15
 ### Fixed
 ARGUS-43192

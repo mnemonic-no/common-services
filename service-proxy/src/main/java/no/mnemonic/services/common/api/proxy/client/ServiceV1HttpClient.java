@@ -79,9 +79,9 @@ public class ServiceV1HttpClient {
    * @param method      the name of the method
    * @param type        the type of the expected response (single or resultset)
    * @param requestBody the request body (will be converted into a JSON object)
-   * @return the HTTP response. This response MUST be closed by the client using Closeable.close()
+   * @return a response context. This response MUST be closed by the client using Closeable.close() or Resource.cancel()
    */
-  public ClassicHttpResponse request(String service, String method, ServiceRequestMessage.Type type, ServiceContext.Priority priority, ServiceRequestMessage requestBody) {
+  public ServiceResponseContext request(String service, String method, ServiceRequestMessage.Type type, ServiceContext.Priority priority, ServiceRequestMessage requestBody) {
     try {
       String path = String.format("/service/v1/%s/%s/%s", service, type, method);
       URI uri = new URIBuilder(baseURI).setPort(getPort(priority)).setPath(path).build();
@@ -103,7 +103,7 @@ public class ServiceV1HttpClient {
         response.close();
         throw new IllegalStateException(String.format("Unexpected response (%d) from HTTP proxy: %s", response.getCode(), response.getReasonPhrase()));
       } else {
-        return response;
+        return new ServiceResponseContext(httpRequest, response);
       }
     } catch (ConnectionRequestTimeoutException e) {
       LOGGER.error(e, "Service request connection timeout");

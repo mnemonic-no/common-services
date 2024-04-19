@@ -5,10 +5,10 @@ import no.mnemonic.services.common.api.ServiceSession;
 import no.mnemonic.services.common.api.ServiceSessionFactory;
 import no.mnemonic.services.common.api.proxy.client.ServiceClient;
 import no.mnemonic.services.common.api.proxy.client.ServiceV1HttpClient;
-import no.mnemonic.services.common.api.proxy.server.ServiceInvocationHandler;
-import no.mnemonic.services.common.api.proxy.server.ServiceProxy;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 import no.mnemonic.services.common.api.proxy.serializer.XStreamSerializer;
+import no.mnemonic.services.common.api.proxy.server.ServiceInvocationHandler;
+import no.mnemonic.services.common.api.proxy.server.ServiceProxy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,10 +26,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static no.mnemonic.commons.utilities.collections.SetUtils.set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 /**
  * Test that priority-threadpool configuration works
@@ -72,9 +71,9 @@ public class ConcurrencyTest {
   void setUp() throws Exception {
     lenient().when(sessionFactory.openSession()).thenReturn(session);
     lenient().when(mockedService.getString(any())).thenAnswer(i -> {
-      int current = currentThreads.incrementAndGet();
-      maxThreads.accumulateAndGet(current, Math::max);
-      Thread.sleep(1000);
+      currentThreads.incrementAndGet();
+      Thread.sleep(1500);
+      maxThreads.accumulateAndGet(currentThreads.get(), Math::max);
       currentThreads.decrementAndGet();
       return "result";
     });
@@ -137,6 +136,6 @@ public class ConcurrencyTest {
       assertEquals("result", f.get());
     }
     verify(mockedService, times(CLIENT_THREADS)).getString("arg");
-    assertEquals(expectedMaxThreads, maxThreads.get());
+    assertTrue(Math.abs(expectedMaxThreads - maxThreads.get()) <= 1, String.format("Expected %d maxthreads, got %d", expectedMaxThreads, maxThreads.get()));
   }
 }

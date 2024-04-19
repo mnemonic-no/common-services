@@ -7,9 +7,9 @@ import lombok.AllArgsConstructor;
 import lombok.CustomLog;
 import no.mnemonic.commons.utilities.collections.SetUtils;
 import no.mnemonic.commons.utilities.lambda.LambdaUtils;
+import no.mnemonic.services.common.api.Resource;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 
-import java.io.Closeable;
 import java.io.InputStream;
 
 /**
@@ -26,12 +26,12 @@ public class ResultSetParser {
    * Parse the input stream into a streaming resultset.
    *
    * @param response an open response inputstream. This is being closed when the parser is done (also on exceptions)
-   * @param onClose invokable to execute on close
+   * @param resource resource to close when resultset closes
    * @return a streaming resultset
    * @param <T> the type of the streaming resultset data
    * @throws Exception if the parser reads a service exception, or an exception occurs reading the resultset
    */
-  public <T> ClientResultSet<T> parse(InputStream response, Closeable onClose) throws Exception {
+  public <T> ClientResultSet<T> parse(InputStream response, Resource resource) throws Exception {
     try {
       JsonParser parser = mapper.createParser(response);
       assertThat(parser.nextToken() == JsonToken.START_OBJECT, "Expected start-of-object");
@@ -77,20 +77,20 @@ public class ResultSetParser {
       }
       if (data == null) {
         //make sure response is closed if parser stops processing here
-        closeResources(response, onClose);
+        closeResources(response, resource);
         return null;
       }
       //at this point, the response is still left open
-      return new ClientResultSet<>(serializer, count, limit, offset, data, onClose);
+      return new ClientResultSet<>(serializer, count, limit, offset, data, resource);
     } catch (RuntimeException e) {
       LOGGER.error(e, "Error parsing resultset");
       //make sure response is closed if parser stops processing here
-      closeResources(response, onClose);
+      cancelResources(response, resource);
       throw e;
     } catch (Exception e) {
       LOGGER.debug(e, "Error parsing resultset");
       //make sure response is closed if parser stops processing here
-      closeResources(response, onClose);
+      cancelResources(response, resource);
       throw e;
     }
   }
@@ -99,9 +99,14 @@ public class ResultSetParser {
     if (!b) throw new IllegalStateException("Error parsing JSON: " + reason);
   }
 
-  private void closeResources(InputStream response, Closeable onClose) {
+  private void closeResources(InputStream response, Resource resource) {
     LambdaUtils.tryTo(response::close, ex->LOGGER.error(ex, "Error closing response stream"));
-    LambdaUtils.tryTo(onClose::close, ex->LOGGER.error(ex, "Error closing response"));
+    LambdaUtils.tryTo(resource::close, ex->LOGGER.error(ex, "Error closing response"));
+  }
+
+  private void cancelResources(InputStream response, Resource resource) {
+    LambdaUtils.tryTo(response::close, ex->LOGGER.error(ex, "Error closing response stream"));
+    LambdaUtils.tryTo(resource::cancel, ex->LOGGER.error(ex, "Error closing response"));
   }
 
 }

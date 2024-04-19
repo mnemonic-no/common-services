@@ -11,15 +11,14 @@ import no.mnemonic.commons.metrics.Metrics;
 import no.mnemonic.commons.metrics.MetricsData;
 import no.mnemonic.commons.metrics.TimerContext;
 import no.mnemonic.commons.utilities.collections.CollectionUtils;
+import no.mnemonic.services.common.api.Resource;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.ServiceContext;
 import no.mnemonic.services.common.api.annotations.ResultSetExtention;
 import no.mnemonic.services.common.api.proxy.messages.ServiceRequestMessage;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
-import org.apache.hc.core5.http.ClassicHttpResponse;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
@@ -65,7 +64,7 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
   @NonNull
   private final ObjectMapper mapper;
 
-  private static final ThreadLocal<Set<CloseableWrapper>> threadCloseables = new ThreadLocal<>();
+  private static final ThreadLocal<Set<ResourceWrapper>> threadResources = new ThreadLocal<>();
 
   private final LongAdder requests = new LongAdder();
   private final LongAdder resultOK = new LongAdder();
@@ -108,11 +107,11 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
   }
 
   static void closeThreadResources() {
-    Set<CloseableWrapper> threadSet = threadCloseables.get();
+    Set<ResourceWrapper> threadSet = threadResources.get();
     if (CollectionUtils.isEmpty(threadSet)) {
       return;
     }
-    for (CloseableWrapper closeable : threadSet) {
+    for (ResourceWrapper closeable : threadSet) {
       LOGGER.warning("Closing resource not closed by normal operation");
       tryTo(closeable::close, e -> LOGGER.warning(e, "Error closing resource"));
     }
@@ -143,7 +142,7 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
     }
 
     if (ResultSet.class.isAssignableFrom(method.getReturnType())) {
-      ClassicHttpResponse response = httpClient.request(
+      ServiceResponseContext response = httpClient.request(
               proxyInterface.getName(),
               method.getName(),
               ServiceRequestMessage.Type.resultset,
@@ -152,29 +151,29 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
       );
       return handleResultSet(method, response);
     } else {
-      try (ClassicHttpResponse response = httpClient.request(
+      try (ServiceResponseContext response = httpClient.request(
               proxyInterface.getName(),
               method.getName(),
               ServiceRequestMessage.Type.single,
               request.getPriority(),
               request
       )) {
-        return serviceMessageConverter.readResponseMessage(response.getEntity().getContent());
+        return serviceMessageConverter.readResponseMessage(response.getContent());
       }
     }
 
   }
 
-  private <R> ResultSet<R> handleResultSet(Method invokedMethod, ClassicHttpResponse response) throws Exception {
-    Closeable resultSetCloser = wrapCloseable(response);
+  private <R> ResultSet<R> handleResultSet(Method invokedMethod, ServiceResponseContext response) throws Exception {
+    Resource resultSetCloser = wrapResource(response);
     if (invokedMethod.getReturnType().equals(ResultSet.class)) {
-      return new ResultSetParser(mapper, serializer).parse(response.getEntity().getContent(), resultSetCloser);
+      return new ResultSetParser(mapper, serializer).parse(response.getContent(), resultSetCloser);
     } else {
       //if the declared method returns a subclass of ResultSet, we may need an extender function
       Function<ResultSet<?>, ? extends ResultSet<?>> extender = extenderFunctions.computeIfAbsent(invokedMethod.getReturnType(), this::resolveExtenderFunction);
       //extend the declared return type to the correct subclass
       //noinspection unchecked
-      return (ResultSet<R>) extender.apply(new ResultSetParser(mapper, serializer).parse(response.getEntity().getContent(), resultSetCloser));
+      return (ResultSet<R>) extender.apply(new ResultSetParser(mapper, serializer).parse(response.getContent(), resultSetCloser));
     }
   }
 
@@ -191,28 +190,35 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
   }
 
   /**
-   * Create a wrapper around closeable which is registered in this threadLocal
+   * Create a wrapper around resource which is registered in this threadLocal
    */
-  private Closeable wrapCloseable(Closeable closeable) {
-    Set<CloseableWrapper> threadSet = threadCloseables.get();
+  private Resource wrapResource(Resource resource) {
+    Set<ResourceWrapper> threadSet = threadResources.get();
     if (threadSet == null) {
       threadSet = set();
-      threadCloseables.set(threadSet);
+      threadResources.set(threadSet);
     }
-    CloseableWrapper wrapper = new CloseableWrapper(closeable);
+    ResourceWrapper wrapper = new ResourceWrapper(resource);
     threadSet.add(wrapper);
     return wrapper;
   }
 
   @AllArgsConstructor
-  private static class CloseableWrapper implements Closeable {
-    final Closeable wrapped;
+  private static class ResourceWrapper implements Resource {
+    final Resource wrapped;
 
     @Override
     public void close() throws IOException {
       wrapped.close();
-      if (threadCloseables.get() == null) return;
-      threadCloseables.get().remove(this);
+      if (threadResources.get() == null) return;
+      threadResources.get().remove(this);
+    }
+
+    @Override
+    public void cancel() throws IOException {
+      wrapped.cancel();
+      if (threadResources.get() == null) return;
+      threadResources.get().remove(this);
     }
   }
 
