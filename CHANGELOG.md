@@ -3,6 +3,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.4] - 2024-04-21
+### Added
+ARGUS-43191
+- Implementing optional `CircuitBreakerHandler` in `ServiceProxy`.
+- If enabled, this handler will early reject requests to Jetty if the server thread pool is (near) empty, 
+instead of queueing requests. This will lead to rejecting requests early, instead returning 503,
+allowing an upstream load balancer to forward the request to other instances.
+
 ## [0.6.3] - 2024-04-18
 ### Added
 ARGUSUSER-7540 

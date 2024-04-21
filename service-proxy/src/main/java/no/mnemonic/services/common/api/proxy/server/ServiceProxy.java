@@ -15,13 +15,21 @@ import no.mnemonic.commons.metrics.MetricsData;
 import no.mnemonic.commons.metrics.MetricsGroup;
 import no.mnemonic.commons.utilities.collections.MapUtils;
 import no.mnemonic.services.common.api.Service;
+import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.HttpConnectionFactory;
+import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.handler.AbstractHandler;
+import org.eclipse.jetty.server.handler.HandlerList;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.thread.MonitoredQueuedThreadPool;
+import org.eclipse.jetty.util.thread.QueuedThreadPool;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -72,6 +80,7 @@ import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
 public class ServiceProxy implements LifecycleAspect, MetricAspect {
 
   private static final int DEFAULT_MAX_STRING_LENGTH = 50_000_000;
+  private static final int DISABLE_CIRCUIT_BREAKER = -1;
 
   @Builder.Default
   private final int bulkPort = 9001;
@@ -85,8 +94,18 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
   private final int standardThreads = 5;
   @Builder.Default
   private final int expediteThreads = 5;
+  /**
+   * Max size of request objects when parsing a service request.
+   * Services should figure out other strategies for handling really large requests, such as fragmented upload.
+   */
   @Builder.Default
   private final int readMaxStringLength = DEFAULT_MAX_STRING_LENGTH;
+  /**
+   * Optionally enable webserver circuit breaker to early reject requests when the thread pool´s idle thread count reaches or drops below the circuitBreakerLimit. Default is disabled.
+   * If enabled, a request will be rejected if the thread pool has less idle threads than this limit (typical value is 1).
+   */
+  @Builder.Default
+  private final int circuitBreakerLimit = DISABLE_CIRCUIT_BREAKER;
 
   @NonNull
   private final Map<Class<?>, ServiceInvocationHandler<?>> invocationHandlers;
@@ -97,7 +116,6 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
   @Override
   public void startComponent() {
     Server server = new Server();
-    ServletContextHandler contextHandler = new ServletContextHandler();
 
     ServletHolder v1Servlet = new ServletHolder();
     v1Servlet.setServlet(
@@ -106,13 +124,21 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
             .setInvocationHandlers(MapUtils.map(invocationHandlers.entrySet(), e->MapUtils.pair(e.getKey().getName(), e.getValue())))
             .build()
     );
-    contextHandler.addServlet(v1Servlet, "/service/v1/*");
 
+    ServletContextHandler contextHandler = new ServletContextHandler();
+    contextHandler.addServlet(v1Servlet, "/service/v1/*");
     server.setHandler(contextHandler);
 
     threadPools.put(bulkPort, addConnector(server, bulkThreads, bulkPort));
     threadPools.put(standardPort, addConnector(server, standardThreads, standardPort));
     threadPools.put(expeditePort, addConnector(server, expediteThreads, expeditePort));
+
+    //if circuit breaker is enabled, do not allow queueing of requests, instead immediately fail the request if the thread pool is (near) empty
+    if (circuitBreakerLimit >= 0) {
+      CircuitBreakerHandler circuitBreakerHandler = new CircuitBreakerHandler(threadPools, circuitBreakerLimit);
+      Handler handlerChain = new HandlerList(circuitBreakerHandler, contextHandler);
+      server.setHandler(handlerChain);
+    }
 
     try {
       server.start();
@@ -184,6 +210,29 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
     server.addConnector(connector);
     LOGGER.info("Adding connector on port %d", port);
     return threadPool;
+  }
+
+  public static class CircuitBreakerHandler extends AbstractHandler {
+
+    private final Map<Integer, MonitoredQueuedThreadPool> threadPools;
+    private final int threshold;
+
+    public CircuitBreakerHandler(Map<Integer, MonitoredQueuedThreadPool> threadPools, int threshold) {
+      this.threadPools = threadPools;
+      this.threshold = threshold;
+    }
+
+    @Override
+    public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
+      QueuedThreadPool threadPool = this.threadPools.get(baseRequest.getLocalPort());
+      if (threadPool != null && threadPool.getIdleThreads() <= threshold) {
+        LOGGER.warning("Rejecting request, server too busy");
+        response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "Server too busy");
+        baseRequest.setHandled(true);
+      } else {
+        baseRequest.setHandled(false);
+      }
+    }
   }
 
   public static class ServiceProxyBuilder {

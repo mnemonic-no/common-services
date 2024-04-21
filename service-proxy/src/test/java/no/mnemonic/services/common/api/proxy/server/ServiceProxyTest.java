@@ -33,14 +33,26 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static no.mnemonic.commons.utilities.collections.ListUtils.list;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ServiceProxyTest {
@@ -63,11 +75,12 @@ class ServiceProxyTest {
           .setAllowedClass(TestException.class)
           .setAllowedClass(TestArgument.class)
           .build();
+  private ServiceInvocationHandler<TestService> invocationHandler;
 
   @BeforeEach
   void setUp() {
     lenient().when(sessionFactory.openSession()).thenReturn(session);
-    ServiceInvocationHandler<TestService> invocationHandler = ServiceInvocationHandler.<TestService>builder()
+    invocationHandler = ServiceInvocationHandler.<TestService>builder()
             .setProxiedService(service)
             .addSerializer(serializer)
             .setSessionFactory(sessionFactory)
@@ -77,7 +90,6 @@ class ServiceProxyTest {
             .addInvocationHandler(TestService.class, invocationHandler)
             .setReadMaxStringLength(MAX_READ_STRING_LENGTH)
             .build();
-    proxy.startComponent();
   }
 
   @AfterEach
@@ -87,7 +99,52 @@ class ServiceProxyTest {
   }
 
   @Test
+  void testCircuitBreaker() throws TestException, ExecutionException, InterruptedException, TimeoutException {
+    proxy = ServiceProxy.builder()
+            .addInvocationHandler(TestService.class, invocationHandler)
+            .setStandardThreads(3)
+            .setCircuitBreakerLimit(1)
+            .setReadMaxStringLength(MAX_READ_STRING_LENGTH)
+            .build();
+    proxy.startComponent();
+    CountDownLatch latch = new CountDownLatch(1);
+    when(service.getString(any())).thenAnswer(i->{
+      latch.await(20, TimeUnit.SECONDS);
+      return "answer";
+    });
+    ExecutorService exec = Executors.newCachedThreadPool();
+
+    //start 4 requests (with a tiny offset between each request, to avoid filling the threadpool immediately, which gives an unstable test
+    List<Future<Response>> responses = ListUtils.list();
+    for (int i = 0; i < 4; i++) {
+      responses.add(exec.submit(() -> invoke(false, "getString", "stringArg")));
+      Thread.sleep(100);
+    }
+
+    //let it simmer a bit, just to make sure all requests are scheduled
+    Thread.sleep(1000);
+
+    //release requests, so requests which are not already rejected are allowed to complete
+    latch.countDown();
+
+    //fetch results from all requests and summarize
+    int oks = 0;
+    int errors = 0;
+    for (Future<Response> f : responses) {
+      int code = f.get(20, TimeUnit.SECONDS).code;
+      if (code == 200) oks++;
+      else if (code == 503) errors++;
+      else fail();
+    }
+
+    //expect two to complete OK, and 2 to fail with 503
+    assertEquals(2, oks);
+    assertEquals(2, errors);
+  }
+
+  @Test
   void testSimpleInvocation() throws IOException, TestException {
+    proxy.startComponent();
     when(service.getString(any())).thenReturn("returnString");
     Response response = invoke(false, "getString", "stringArg");
     assertEquals(Utils.HTTP_OK_RESPONSE, response.code);
@@ -97,8 +154,9 @@ class ServiceProxyTest {
 
   @Test
   void testResultSetInvocation() throws IOException, TestException {
+    proxy.startComponent();
     when(service.getResultSet(any())).thenReturn(ResultSetImpl.<String>builder()
-            .setIterator(ListUtils.list("a", "b", "c").iterator())
+            .setIterator(list("a", "b", "c").iterator())
             .setLimit(5).setOffset(10).setCount(20)
             .build());
     Response response = invoke(true, "getResultSet", "stringArg");
@@ -108,11 +166,12 @@ class ServiceProxyTest {
     assertEquals(5, resultSet.getLimit());
     assertEquals(10, resultSet.getOffset());
     assertEquals(20, resultSet.getCount());
-    assertEquals(ListUtils.list("a", "b", "c"), ListUtils.list(resultSet.iterator()));
+    assertEquals(list("a", "b", "c"), list(resultSet.iterator()));
   }
 
   @Test
   void testServiceException() throws IOException, TestException {
+    proxy.startComponent();
     when(service.getString(any())).thenThrow(TestException.class);
     Response response = invoke(false, "getString", "stringArg");
     assertEquals(Utils.HTTP_OK_RESPONSE, response.code);
@@ -122,6 +181,7 @@ class ServiceProxyTest {
 
   @Test
   void testLargeMessage() throws IOException, TestException {
+    proxy.startComponent();
     String largeString = Stream.generate(() -> "a").limit(MAX_READ_STRING_LENGTH/2).collect(Collectors.joining());
     Response response = invoke(false, "getString", largeString);
     assertEquals(Utils.HTTP_OK_RESPONSE, response.code);
@@ -130,6 +190,7 @@ class ServiceProxyTest {
 
   @Test
   void testTooLargeMessage() throws IOException, TestException {
+    proxy.startComponent();
     String largeString = Stream.generate(() -> "a").limit(MAX_READ_STRING_LENGTH+10).collect(Collectors.joining());
     Response response = invoke(false, "getString", largeString);
     assertEquals(Utils.HTTP_ERROR_RESPONSE, response.code);
