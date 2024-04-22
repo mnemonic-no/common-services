@@ -240,23 +240,31 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
   }
 
   private void writeStreamingResponse(UUID requestID, Serializer serializer, JsonGenerator generator, Object result) throws IOException {
-    ResultSet<?> resultSet = (ResultSet<?>) result;
+      ResultSet<?> resultSet = (ResultSet<?>) result;
     generator.writeStartObject();
     generator.writeStringField("requestID", requestID.toString());
     if (resultSet != null) {
-      generator.writeNumberField("count", resultSet.getCount());
-      generator.writeNumberField("limit", resultSet.getLimit());
-      generator.writeNumberField("offset", resultSet.getOffset());
-      generator.writeArrayFieldStart("data");
+      try {
+        generator.writeNumberField("count", resultSet.getCount());
+        generator.writeNumberField("limit", resultSet.getLimit());
+        generator.writeNumberField("offset", resultSet.getOffset());
+        generator.writeArrayFieldStart("data");
 
-      //write streaming result directly to output stream, to avoid memory buildup
-      for (Object o : resultSet) {
-        generator.writeString(
-                serializer.serializeB64(o)
-        );
+        //write streaming result directly to output stream, to avoid memory buildup
+        for (Object o : resultSet) {
+          generator.writeString(
+                  serializer.serializeB64(o)
+          );
+        }
+        generator.writeEndArray();
+      } catch (Exception e) {
+        //cancel resultset if abrupt failure
+        LOGGER.error(e, "Error when writing ResultSet");
+        resultSet.cancel();
+      } finally {
+        //close resultset
+        resultSet.close();
       }
-      //close resultset
-      generator.writeEndArray();
     }
     generator.writeEndObject();
   }

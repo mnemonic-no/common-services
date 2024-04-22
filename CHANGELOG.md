@@ -3,6 +3,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.6] - 2024-04-22
+### Changed
+ARGUS-43419
+- Ensure closing of `ResultSet` in `ServiceInvocationHandler` after handling streaming result.
+- Invoke `ResultSet.cancel()` if an error occurs during `ServiceInvocationHandler` handling of resultset
+
+The `ServiceInvocationHandler` already closes the enclosing `ServiceSession` after handling a `ResultSet`.  
+However, in some situations, the `ResultSet` may have its own session, so the handler must also close this resource.
+
 ## [0.6.5] - 2024-04-22
 ### Changed
 ARGUS-43494
