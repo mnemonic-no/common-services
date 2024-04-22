@@ -166,7 +166,6 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
         set(debugListeners).forEach(l -> l.invocationSucceeded(requestID));
       } catch (InvocationTargetException e) {
         //since invocation is a method call, any exception is an InvocationTargetException
-        LOGGER.error(e, "Error invoking method");
         writeException(request.getRequestID(), serializer, generator, e);
         set(debugListeners).forEach(l -> l.invocationFailed(requestID));
       } catch (IOException e) {
