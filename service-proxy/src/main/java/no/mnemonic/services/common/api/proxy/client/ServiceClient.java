@@ -66,6 +66,7 @@ public class ServiceClient<T extends Service> implements MetricAspect {
   @Override
   public Metrics getMetrics() throws MetricException {
     MetricsGroup group = new MetricsGroup();
+    group.addSubMetrics("serializer", serializer.getMetrics());
     if (handler.get() != null) {
       group.addSubMetrics("handler", handler.get().getMetrics());
     }

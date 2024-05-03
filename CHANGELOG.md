@@ -3,6 +3,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.7] - 2024-05-03
+### Changed
+ARGUS-43696
+- Add Serializer metrics in ServiceClient
+
 ## [0.6.6] - 2024-04-22
 ### Changed
 ARGUS-43419
