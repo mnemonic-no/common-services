@@ -3,6 +3,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.8] - 2024-05-15
+### Added
+ARGUS-43963
+- Added HTTP client pool metrics to the ServiceV1HttpClientı
+
 ## [0.6.7] - 2024-05-03
 ### Changed
 ARGUS-43696

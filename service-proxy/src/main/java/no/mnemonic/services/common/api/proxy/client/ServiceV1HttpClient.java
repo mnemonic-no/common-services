@@ -5,6 +5,10 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import lombok.Builder;
 import lombok.CustomLog;
 import lombok.NonNull;
+import no.mnemonic.commons.metrics.MetricAspect;
+import no.mnemonic.commons.metrics.MetricException;
+import no.mnemonic.commons.metrics.Metrics;
+import no.mnemonic.commons.metrics.MetricsData;
 import no.mnemonic.commons.utilities.collections.SetUtils;
 import no.mnemonic.services.common.api.ServiceContext;
 import no.mnemonic.services.common.api.ServiceTimeOutException;
@@ -20,6 +24,7 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.net.URIBuilder;
+import org.apache.hc.core5.pool.PoolStats;
 
 import java.io.IOException;
 import java.net.URI;
@@ -29,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @CustomLog
 @Builder(buildMethodName = "_buildInternal", setterPrefix = "set")
-public class ServiceV1HttpClient {
+public class ServiceV1HttpClient implements MetricAspect {
 
   private static final ObjectMapper MAPPER = JsonMapper.builder().build();
   private static final int DEFAULT_BULK_PORT = 9001;
@@ -55,21 +60,34 @@ public class ServiceV1HttpClient {
 
   private static final String PACKAGE_VERSION = ServiceV1HttpClient.class.getPackage().getImplementationVersion();
 
+  private final AtomicReference<PoolingHttpClientConnectionManager> connectionManager = new AtomicReference<>();
   private final AtomicReference<HttpClient> httpClient = new AtomicReference<>();
 
   private ServiceV1HttpClient init() {
-    PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
-    connectionManager.setDefaultMaxPerRoute(maxConnections);
-    connectionManager.setMaxTotal(maxConnections);
+    this.connectionManager.set(createConnectionManager());
     httpClient.set(
         HttpClientBuilder.create()
-                .setConnectionManager(connectionManager)
+                .setConnectionManager(connectionManager.get())
                 .setDefaultRequestConfig(RequestConfig.custom()
                         .setConnectionRequestTimeout(connectionTimeoutSeconds, TimeUnit.SECONDS)
                         .build())
                 .build()
     );
     return this;
+  }
+
+  @Override
+  public Metrics getMetrics() throws MetricException {
+    PoolingHttpClientConnectionManager mgr = connectionManager.get();
+    MetricsData data = new MetricsData();
+    if (mgr != null) {
+      PoolStats stats = mgr.getTotalStats();
+      data.addData("available", stats.getAvailable());
+      data.addData("leased", stats.getLeased());
+      data.addData("max", stats.getMax());
+      data.addData("pending", stats.getPending());
+    }
+    return data;
   }
 
   /**
@@ -112,6 +130,13 @@ public class ServiceV1HttpClient {
       LOGGER.error(e, "Error invoking HTTP client");
       throw new IllegalStateException("Error invoking HTTP client", e);
     }
+  }
+
+  private PoolingHttpClientConnectionManager createConnectionManager() {
+    PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
+    connectionManager.setDefaultMaxPerRoute(maxConnections);
+    connectionManager.setMaxTotal(maxConnections);
+    return connectionManager;
   }
 
   private int getPort(ServiceContext.Priority priority) {
