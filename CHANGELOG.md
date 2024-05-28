@@ -3,6 +3,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.9] - 2024-05-28
+### Fixed
+PROBLEM-472
+- Ensure that ClientResultSet is closed when using `.iterator()`
+
 ## [0.6.8] - 2024-05-15
 ### Added
 ARGUS-43963

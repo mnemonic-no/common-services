@@ -9,6 +9,7 @@ import no.mnemonic.services.common.api.Resource;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 
@@ -44,32 +45,7 @@ public class ClientResultSet<T> implements ResultSet<T> {
 
   @Override
   public Iterator<T> iterator() {
-    return new Iterator<T>() {
-      @Override
-      public boolean hasNext() {
-        if (closed) return false;
-        if (data.currentToken() == JsonToken.END_ARRAY) {
-          close();
-          return false;
-        } else {
-          return true;
-        }
-      }
-
-      @Override
-      public T next() {
-        try {
-          //expect the parser to be advanced to an array element already
-          String value = data.getText();
-          //advance and verify that next token is also an element, or end-of-array
-          assertThat(SetUtils.in(data.nextToken(), JsonToken.END_ARRAY, JsonToken.VALUE_STRING), "Expected end-of-array or value-string");
-          //deserialize the previous element
-          return serializer.deserializeB64(value);
-        } catch (IOException e) {
-          throw new IllegalStateException("Error deserializing resultset value", e);
-        }
-      }
-    };
+    return new ClientResultSetIterator<>();
   }
 
   @Override
@@ -102,5 +78,38 @@ public class ClientResultSet<T> implements ResultSet<T> {
 
   private void assertThat(boolean b, String reason) {
     if (!b) throw new IllegalStateException("Error parsing JSON: " + reason);
+  }
+
+  private class ClientResultSetIterator<T> implements Iterator<T>, Closeable {
+
+    @Override
+    public void close() {
+      ClientResultSet.this.close();
+    }
+
+    @Override
+    public boolean hasNext() {
+      if (closed) return false;
+      if (data.currentToken() == JsonToken.END_ARRAY) {
+        this.close();
+        return false;
+      } else {
+        return true;
+      }
+    }
+
+    @Override
+    public T next() {
+      try {
+        //expect the parser to be advanced to an array element already
+        String value = data.getText();
+        //advance and verify that next token is also an element, or end-of-array
+        assertThat(SetUtils.in(data.nextToken(), JsonToken.END_ARRAY, JsonToken.VALUE_STRING), "Expected end-of-array or value-string");
+        //deserialize the previous element
+        return serializer.deserializeB64(value);
+      } catch (IOException e) {
+        throw new IllegalStateException("Error deserializing resultset value", e);
+      }
+    }
   }
 }
