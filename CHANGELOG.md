@@ -3,9 +3,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.10] - 2024-05-28
+### Fixed
+ARGUS-44166
+- Option to log service/method of open SPI client requests on `ServiceV1HttpClient.getMetrics()`
+
 ## [0.6.9] - 2024-05-28
 ### Fixed
-PROBLEM-472
+ARGUS-44160
 - Ensure that ClientResultSet is closed when using `.iterator()`
 
 ## [0.6.8] - 2024-05-15

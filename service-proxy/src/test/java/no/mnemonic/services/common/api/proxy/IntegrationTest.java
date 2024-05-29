@@ -76,7 +76,7 @@ public class IntegrationTest {
     proxy.startComponent();
 
     ServiceV1HttpClient httpClient = ServiceV1HttpClient.builder()
-        .setDebug(true)
+        .setDebugRequests(true)
         .setBaseURI(BASEURL)
         .build();
     serviceClient = ServiceClient.<TestService>builder()

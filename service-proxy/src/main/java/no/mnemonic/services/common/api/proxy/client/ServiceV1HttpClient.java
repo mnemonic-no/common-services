@@ -29,6 +29,9 @@ import org.apache.hc.core5.pool.PoolStats;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -43,9 +46,13 @@ public class ServiceV1HttpClient implements MetricAspect {
   private static final int DEFAULT_MAX_CONNECTIONS = 20;
   private static final int DEFAULT_CONNECTION_TIMEOUT_SECONDS = 180;
 
+  //print debug of every request
+  private final boolean debugRequests;
+  //print list of open requests on every getMetrics()
+  private final boolean debugOpenRequests;
+
   @NonNull
   private final String baseURI;
-  private final boolean debug;
 
   @Builder.Default
   private final int bulkPort = DEFAULT_BULK_PORT;
@@ -58,10 +65,12 @@ public class ServiceV1HttpClient implements MetricAspect {
   @Builder.Default
   private final long connectionTimeoutSeconds = DEFAULT_CONNECTION_TIMEOUT_SECONDS;
 
+
   private static final String PACKAGE_VERSION = ServiceV1HttpClient.class.getPackage().getImplementationVersion();
 
   private final AtomicReference<PoolingHttpClientConnectionManager> connectionManager = new AtomicReference<>();
   private final AtomicReference<HttpClient> httpClient = new AtomicReference<>();
+  private final Map<UUID, ServiceResponseContext> contextMap = new ConcurrentHashMap<>();
 
   private ServiceV1HttpClient init() {
     this.connectionManager.set(createConnectionManager());
@@ -87,6 +96,9 @@ public class ServiceV1HttpClient implements MetricAspect {
       data.addData("max", stats.getMax());
       data.addData("pending", stats.getPending());
     }
+    if (debugOpenRequests) {
+      contextMap.forEach((k,ctx) -> LOGGER.info("Open response context: %s", ctx));
+    }
     return data;
   }
 
@@ -110,7 +122,7 @@ public class ServiceV1HttpClient implements MetricAspect {
           ContentType.APPLICATION_JSON
       ));
       httpRequest.addHeader("Argus-Service-Client-Version", PACKAGE_VERSION);
-      if (debug) {
+      if (debugRequests) {
         LOGGER.debug("Invoking Service API %s", uri);
       }
       ClassicHttpResponse response = httpClient.get().executeOpen(host, httpRequest, null);
@@ -121,7 +133,9 @@ public class ServiceV1HttpClient implements MetricAspect {
         response.close();
         throw new IllegalStateException(String.format("Unexpected response (%d) from HTTP proxy: %s", response.getCode(), response.getReasonPhrase()));
       } else {
-        return new ServiceResponseContext(httpRequest, response);
+        ServiceResponseContext ctx = new ServiceResponseContext(service, method, httpRequest, response, contextMap::remove);
+        contextMap.put(ctx.getId(), ctx);
+        return ctx;
       }
     } catch (ConnectionRequestTimeoutException e) {
       LOGGER.error(e, "Service request connection timeout");

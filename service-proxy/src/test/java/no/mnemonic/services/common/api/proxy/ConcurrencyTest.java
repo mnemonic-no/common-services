@@ -99,7 +99,7 @@ public class ConcurrencyTest {
 
     ServiceV1HttpClient httpClient = ServiceV1HttpClient.builder()
         .setMaxConnections(CLIENT_THREADS)
-        .setDebug(true)
+        .setDebugRequests(true)
         .setBaseURI(BASEURL)
         .build();
     serviceClient = ServiceClient.<TestService>builder()

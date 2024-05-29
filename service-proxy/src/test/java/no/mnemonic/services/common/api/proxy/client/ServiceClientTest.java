@@ -183,7 +183,7 @@ class ServiceClientTest {
 
   private static ServiceV1HttpClient createAPIProvider() {
     return ServiceV1HttpClient.builder()
-        .setDebug(true)
+        .setDebugRequests(true)
         .setBaseURI(HTTP_LOCALHOST)
         .setBulkPort(SERVER.port())
         .setExpeditePort(SERVER.port())
