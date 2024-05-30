@@ -1,6 +1,6 @@
 package no.mnemonic.services.common.api.proxy.client;
 
-import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.NonNull;
 import no.mnemonic.commons.utilities.AppendMembers;
 import no.mnemonic.commons.utilities.AppendUtils;
@@ -10,20 +10,24 @@ import org.apache.hc.core5.http.ClassicHttpResponse;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Date;
 import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
  * Wrapper of a HTTP request and response, implementing Resource
  */
-@AllArgsConstructor
+@Builder(setterPrefix = "set")
 public class ServiceResponseContext implements Resource, AppendMembers {
 
     private final UUID id = UUID.randomUUID();
+    private final long timestamp;
     @NonNull
     private final String service;
     @NonNull
     private final String method;
+    @NonNull
+    private final String threadName;
     @NonNull
     private final HttpPost request;
     @NonNull
@@ -40,10 +44,16 @@ public class ServiceResponseContext implements Resource, AppendMembers {
         return AppendUtils.toString(this);
     }
 
+    public boolean isOlderThan(long ageInMillis) {
+        return System.currentTimeMillis() - timestamp > ageInMillis;
+    }
+
     @Override
     public void appendMembers(StringBuilder buf) {
+        AppendUtils.appendField(buf, "timestamp", new Date(timestamp));
         AppendUtils.appendField(buf, "service", service);
         AppendUtils.appendField(buf, "method", method);
+        AppendUtils.appendField(buf, "threadName", threadName);
     }
 
     @Override

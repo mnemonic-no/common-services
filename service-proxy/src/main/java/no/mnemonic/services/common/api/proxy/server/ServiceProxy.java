@@ -32,8 +32,12 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 
+import static no.mnemonic.commons.utilities.ObjectUtils.ifNotNullDo;
+import static no.mnemonic.commons.utilities.ObjectUtils.ifNull;
 import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
 
 /**
@@ -112,6 +116,7 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
 
   private final AtomicReference<Server> server = new AtomicReference<>();
   private final Map<Integer, MonitoredQueuedThreadPool> threadPools = new HashMap<>();
+  private final Map<Integer, LongAdder> circuitBrokenCounters = new ConcurrentHashMap<>();
 
   @Override
   public void startComponent() {
@@ -135,7 +140,7 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
 
     //if circuit breaker is enabled, do not allow queueing of requests, instead immediately fail the request if the thread pool is (near) empty
     if (circuitBreakerLimit >= 0) {
-      CircuitBreakerHandler circuitBreakerHandler = new CircuitBreakerHandler(threadPools, circuitBreakerLimit);
+      CircuitBreakerHandler circuitBreakerHandler = new CircuitBreakerHandler(threadPools, circuitBreakerLimit, circuitBrokenCounters);
       Handler handlerChain = new HandlerList(circuitBreakerHandler, contextHandler);
       server.setHandler(handlerChain);
     }
@@ -155,7 +160,7 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
     MetricsGroup poolMetrics = new MetricsGroup();
     this.threadPools.forEach((port, pool) -> {
       tryTo(
-              ()->poolMetrics.addSubMetrics("port-" + port, createPoolMetrics(pool)),
+              ()->poolMetrics.addSubMetrics("port-" + port, createPoolMetrics(port, pool)),
               e->LOGGER.warning(e,"Error adding metrics")
       );
     });
@@ -176,7 +181,7 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
     }
   }
 
-  private MetricsData createPoolMetrics(MonitoredQueuedThreadPool pool) throws MetricException {
+  private MetricsData createPoolMetrics(Integer port, MonitoredQueuedThreadPool pool) throws MetricException {
     MetricsData data = new MetricsData();
     data.addData("max.task.latency", pool.getMaxTaskLatency());
     data.addData("avg.task.latency", pool.getAverageTaskLatency());
@@ -187,6 +192,7 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
     data.addData("max.queue.latency", pool.getMaxQueueLatency());
     data.addData("max.queue.size", pool.getMaxQueueSize());
     data.addData("utilization.rate", pool.getUtilizationRate());
+    data.addData("circuit.break.counter", ifNull(circuitBrokenCounters.get(port), 0L));
     return data;
   }
 
@@ -216,10 +222,12 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
 
     private final Map<Integer, MonitoredQueuedThreadPool> threadPools;
     private final int threshold;
+    private final Map<Integer, LongAdder> metrics;
 
-    public CircuitBreakerHandler(Map<Integer, MonitoredQueuedThreadPool> threadPools, int threshold) {
+    CircuitBreakerHandler(Map<Integer, MonitoredQueuedThreadPool> threadPools, int threshold, Map<Integer, LongAdder> metrics) {
       this.threadPools = threadPools;
       this.threshold = threshold;
+      this.metrics = metrics;
     }
 
     @Override
@@ -229,6 +237,7 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
         LOGGER.warning("Rejecting request, server too busy");
         response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "Server too busy");
         baseRequest.setHandled(true);
+        ifNotNullDo(metrics.computeIfAbsent(baseRequest.getLocalPort(), p->new LongAdder()), LongAdder::increment);
       } else {
         baseRequest.setHandled(false);
       }

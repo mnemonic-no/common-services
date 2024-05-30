@@ -3,10 +3,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [0.6.10] - 2024-05-28
-### Fixed
+## [0.6.11] - 2024-05-30
+### Improved
 ARGUS-44166
-- Option to log service/method of open SPI client requests on `ServiceV1HttpClient.getMetrics()`
+- Improve logging of ServiceResponseContext when `debugOpenRequests` is enabled, including timestamp and thread name.
+- Add metric and print warning logs for all connections older than a configurable limit `connectionAgeWarningLimit`.
+- Add metrics to ServiceV1HttpClient for service invocations, service timeouts and gateway timeouts (as seen from client) for each priority port.
+- Add metric to ServiceProxy to count usage of circuit breaker.
+
+## [0.6.10] - 2024-05-28
+### Added
+ARGUS-44166
+- Added option `debugOpenRequests` to log service/method of open SPI client requests on `ServiceV1HttpClient.getMetrics()`
 
 ## [0.6.9] - 2024-05-28
 ### Fixed
@@ -16,7 +24,7 @@ ARGUS-44160
 ## [0.6.8] - 2024-05-15
 ### Added
 ARGUS-43963
-- Added HTTP client pool metrics to the ServiceV1HttpClientı
+- Added HTTP client pool metrics to the ServiceV1HttpClient
 
 ## [0.6.7] - 2024-05-03
 ### Changed
