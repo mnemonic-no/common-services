@@ -19,6 +19,11 @@
       <version>${mnemonic.commons.version}</version>
     </dependency>
     <dependency>
+      <groupId>no.mnemonic.commons</groupId>
+      <artifactId>utilities</artifactId>
+      <version>${mnemonic.commons.version}</version>
+    </dependency>
+    <dependency>
       <groupId>no.mnemonic.services.common</groupId>
       <artifactId>service-api</artifactId>
       <version>${project.version}</version>

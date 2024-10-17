@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.ToString;
 import lombok.extern.jackson.Jacksonized;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -20,6 +21,7 @@ public class ServiceResponseMessage {
 
   @ToString.Include
   private UUID requestID;
+  private Map<String, String> metaData;
   private String response;
   private String exception;
 

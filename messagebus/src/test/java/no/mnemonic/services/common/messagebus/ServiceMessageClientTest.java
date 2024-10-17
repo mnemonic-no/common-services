@@ -271,7 +271,7 @@ class ServiceMessageClientTest {
     Future<RequestContext> ctxref = mockResultSetResponse();
     TestService proxy = ServiceMessageClient.builder(TestService.class)
             .setRequestSink(requestSink).setMaxWait(100)
-            .withExtenderFunction(TestService.MyResultSet.class, rs -> new TestService.MyResultSet() {
+            .withExtenderFunction(TestService.MyResultSet.class, (rs, metaData) -> new TestService.MyResultSet() {
               @Override
               public int getCount() {
                 return rs.getCount();

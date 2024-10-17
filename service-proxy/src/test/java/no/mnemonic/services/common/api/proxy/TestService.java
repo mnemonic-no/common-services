@@ -3,13 +3,15 @@ package no.mnemonic.services.common.api.proxy;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.ToString;
+import no.mnemonic.commons.utilities.collections.MapUtils;
 import no.mnemonic.services.common.api.ResultSet;
+import no.mnemonic.services.common.api.ResultSetExtender;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.annotations.ResultBatchSize;
 import no.mnemonic.services.common.api.annotations.ResultSetExtention;
 
 import java.util.Iterator;
-import java.util.function.Function;
+import java.util.Map;
 
 public interface TestService extends Service {
 
@@ -44,18 +46,21 @@ public interface TestService extends Service {
 
   MyAnnotatedResultSet<String> getMyAnnotatedResultSet(String arg) throws TestException;
 
+  MyExtendedResultSet<String> getMyExtendedResultSet(String arg) throws TestException;
+
   abstract class MyResultSet<T> implements ResultSet<T> {
   }
 
   @Builder(setterPrefix = "set")
   @Getter
   @ToString
-  @ResultSetExtention(extender = MyResultSetExtender.class)
+  @ResultSetExtention(extender = MyAnnotatedResultSetExtender.class)
   class MyAnnotatedResultSet<T> implements ResultSet<T> {
     private final int count;
     private final int limit;
     private final int offset;
     private final Iterator<T> iterator;
+    private final String token;
 
     @Override
     public Iterator<T> iterator() {
@@ -63,15 +68,58 @@ public interface TestService extends Service {
     }
   }
 
-  class MyResultSetExtender implements Function<ResultSet<?>, MyAnnotatedResultSet<?>> {
+  @Builder(setterPrefix = "set")
+  @Getter
+  @ToString
+  class MyExtendedResultSet<T> implements ResultSet<T> {
+    private final int count;
+    private final int limit;
+    private final int offset;
+    private final Iterator<T> iterator;
+    private final String metaKey;
+
     @Override
-    public MyAnnotatedResultSet<?> apply(ResultSet<?> rs) {
-      return MyAnnotatedResultSet.<Object>builder()
+    public Iterator<T> iterator() {
+      return iterator;
+    }
+  }
+
+  class MyAnnotatedResultSetExtender implements ResultSetExtender<MyAnnotatedResultSet> {
+
+    public static final String METADATA_KEY = "token";
+
+    @Override
+    public MyAnnotatedResultSet extend(ResultSet rs, Map<String, String> metaData) {
+      return MyAnnotatedResultSet.builder()
               .setIterator((Iterator<Object>) rs.iterator())
               .setCount(rs.getCount())
               .setOffset(rs.getOffset())
               .setLimit(rs.getLimit())
+              .setToken(metaData.get(METADATA_KEY))
               .build();
     }
+
+    @Override
+    public Map<String, String> extract(MyAnnotatedResultSet extendedResultSet) {
+      return MapUtils.map(MapUtils.pair(METADATA_KEY, extendedResultSet.getToken()));
+    }
+
+  }
+
+  class MyExtendedResultSetExtender implements ResultSetExtender<MyExtendedResultSet> {
+
+    public static final String METADATA_KEY = "metaKey";
+
+    @Override
+    public MyExtendedResultSet extend(ResultSet rs, Map<String, String> metaData) {
+      return MyExtendedResultSet.<Object>builder()
+              .setIterator(rs.iterator())
+              .setCount(rs.getCount())
+              .setOffset(rs.getOffset())
+              .setLimit(rs.getLimit())
+              .setMetaKey(metaData.get(METADATA_KEY))
+              .build();
+    }
+
   }
 }

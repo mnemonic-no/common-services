@@ -1,13 +1,14 @@
 package no.mnemonic.services.common.messagebus;
 
 import no.mnemonic.services.common.api.ResultSet;
+import no.mnemonic.services.common.api.ResultSetExtender;
 import no.mnemonic.services.common.api.ResultSetStreamInterruptedException;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.annotations.ResultBatchSize;
 import no.mnemonic.services.common.api.annotations.ResultSetExtention;
 
 import java.util.Iterator;
-import java.util.function.Function;
+import java.util.Map;
 
 public interface TestService extends Service {
 
@@ -47,10 +48,11 @@ public interface TestService extends Service {
   abstract class MyAnnotatedResultSet<T> implements ResultSet<T> {
   }
 
-  class MyResultSetExtender implements Function<ResultSet<?>, MyAnnotatedResultSet<?>> {
+  class MyResultSetExtender implements ResultSetExtender<MyAnnotatedResultSet> {
+
     @Override
-    public MyAnnotatedResultSet<?> apply(ResultSet<?> rs) {
-      return new MyAnnotatedResultSet<Object>() {
+    public MyAnnotatedResultSet extend(ResultSet rs, Map<String, String> metaData) {
+      return new MyAnnotatedResultSet() {
         @Override
         public int getCount() {
           return rs.getCount();

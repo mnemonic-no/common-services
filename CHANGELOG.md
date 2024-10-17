@@ -3,6 +3,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.12] - 2024-05-30
+### Added
+ARGUS-46660
+- Added `ServiceProxyMetaDataContext` to allow service process to register metadata to be added to the resultset sent back to the client
+- Added `ServiceClientMetaDataHandler` interface allowing clients to implement handlers to be notified about metadata
+- Added `ResultSetExtender` to allow service implementations to register extensions of the `ResultSet` base interface, adding more data to the resultset base class.
+
+See [documentation](docs/SERVICE-BUS.md#extending-the-response) for more details.
+
 ## [0.6.11] - 2024-05-30
 ### Improved
 ARGUS-44166

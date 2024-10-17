@@ -14,9 +14,12 @@ import no.mnemonic.commons.metrics.MetricsData;
 import no.mnemonic.commons.metrics.TimerContext;
 import no.mnemonic.commons.utilities.collections.MapUtils;
 import no.mnemonic.services.common.api.ResultSet;
+import no.mnemonic.services.common.api.ResultSetExtender;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.ServiceSession;
 import no.mnemonic.services.common.api.ServiceSessionFactory;
+import no.mnemonic.services.common.api.annotations.ResultSetExtention;
+import no.mnemonic.services.common.api.proxy.ServiceProxyMetaDataContext;
 import no.mnemonic.services.common.api.proxy.messages.ServiceRequestMessage;
 import no.mnemonic.services.common.api.proxy.messages.ServiceResponseMessage;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
@@ -26,6 +29,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -75,6 +79,7 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
   private final LongAdder totalSimpleRequests = new LongAdder();
   private final LongAdder totalStreamingRequests = new LongAdder();
   private final Set<UUID> ongoingRequests = Collections.newSetFromMap(new ConcurrentHashMap<>());
+  private final Map<Class<?>, ResultSetExtender<?>> extenderFunctions = new HashMap<>();
 
   public int getOngoingRequestCount() {
     return ongoingRequests.size();
@@ -102,9 +107,11 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
       @NonNull ServiceRequestMessage request,
       HttpServletResponse httpResponse
   ) throws Exception {
-    totalSimpleRequests.increment();
-    Method method = getMethod(methodName, request);
-    handleMethodInvocation(method, request, httpResponse, this::writeSingleResponse);
+    try (ServiceProxyMetaDataContext ignoredCtx = ServiceProxyMetaDataContext.initialize()) {
+      totalSimpleRequests.increment();
+      Method method = getMethod(methodName, request);
+      handleMethodInvocation(method, request, httpResponse, this::writeSingleResponse);
+    }
   }
 
   /**
@@ -120,12 +127,14 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
       @NonNull ServiceRequestMessage request,
       HttpServletResponse httpResponse
   ) throws Exception {
-    totalStreamingRequests.increment();
-    Method method = getMethod(methodName, request);
-    if (!ResultSet.class.isAssignableFrom(method.getReturnType())) {
-      throw new IllegalStateException("Cannot write streaming for non-resultset returntype");
+    try (ServiceProxyMetaDataContext ignoredCtx = ServiceProxyMetaDataContext.initialize()) {
+      totalStreamingRequests.increment();
+      Method method = getMethod(methodName, request);
+      if (!ResultSet.class.isAssignableFrom(method.getReturnType())) {
+        throw new IllegalStateException("Cannot write streaming for non-resultset returntype");
+      }
+      handleMethodInvocation(method, request, httpResponse, this::writeStreamingResponse);
     }
-    handleMethodInvocation(method, request, httpResponse, this::writeStreamingResponse);
   }
 
   //private methods
@@ -155,13 +164,13 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
         set(debugListeners).forEach(l -> l.invocationStarted(requestID));
         try (
                 AutoCloseable keepAliveTask = createKeepAliveTask(requestID, method, generator);
-                ServiceSession session = sessionFactory.openSession()
+                ServiceSession ignoredSession = sessionFactory.openSession()
         ) {
           Object invocationResult = method.invoke(proxiedService, toArgs(serializer, request.getArguments()));
           //stop keepalive task before writing result back
           keepAliveTask.close();
           //write the result back to writer
-          writer.handle(requestID, serializer, generator, invocationResult);
+          writer.handle(method, requestID, serializer, generator, invocationResult);
         }
         set(debugListeners).forEach(l -> l.invocationSucceeded(requestID));
       } catch (InvocationTargetException e) {
@@ -232,17 +241,29 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
     generator.writeRaw(MAPPER.writeValueAsString(createException(requestID, serializer, (Exception) resultingException)));
   }
 
-  private void writeSingleResponse(UUID requestID, Serializer serializer, JsonGenerator generator, Object invocationResult) throws IOException {
+  private void writeSingleResponse(Method method, UUID requestID, Serializer serializer, JsonGenerator generator, Object invocationResult) throws IOException {
     generator.writeRaw(MAPPER.writeValueAsString(createSingleResponse(requestID, serializer, invocationResult)));
     if (LOGGER.isDebug()) {
       LOGGER.debug("<< response callID=%s", requestID);
     }
   }
 
-  private void writeStreamingResponse(UUID requestID, Serializer serializer, JsonGenerator generator, Object result) throws IOException {
-      ResultSet<?> resultSet = (ResultSet<?>) result;
+  private void writeStreamingResponse(Method method, UUID requestID, Serializer serializer, JsonGenerator generator, Object result) throws IOException {
+    ResultSet<?> resultSet = (ResultSet<?>) result;
+    Map<String, String> metaData = MapUtils.map(ServiceProxyMetaDataContext.getMetaData());
+
+    if (!method.getReturnType().equals(ResultSet.class)) {
+      ResultSetExtender extender = extenderFunctions.computeIfAbsent(method.getReturnType(), this::resolveExtenderFunction);
+      if (extender != null) {
+        metaData.putAll(MapUtils.map(extender.extract(resultSet)));
+      }
+    }
+
     generator.writeStartObject();
     generator.writeStringField("requestID", requestID.toString());
+    if (!MapUtils.isEmpty(metaData)) {
+      generator.writePOJOField("metaData", metaData);
+    }
     if (resultSet != null) {
       try {
         generator.writeNumberField("count", resultSet.getCount());
@@ -269,12 +290,25 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
     generator.writeEndObject();
   }
 
+  private ResultSetExtender<?> resolveExtenderFunction(Class<?> declaredReturnType) {
+    ResultSetExtention resultSetExtention = declaredReturnType.getAnnotation(ResultSetExtention.class);
+    if (resultSetExtention == null) {
+      return null;
+    }
+    try {
+      return resultSetExtention.extender().getDeclaredConstructor().newInstance();
+    } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+      throw new IllegalStateException("Declared resultset extention function could not be instantiated: " + resultSetExtention.extender(), e);
+    }
+  }
+
   interface ResponseWriter {
-    void handle(UUID requestID, Serializer serializer, JsonGenerator generator, Object handle) throws IOException;
+    void handle(Method method, UUID requestID, Serializer serializer, JsonGenerator generator, Object handle) throws IOException;
   }
 
   private ServiceResponseMessage createSingleResponse(UUID requestID, Serializer serializer, Object invocationResult) throws IOException {
     return ServiceResponseMessage.builder()
+        .setMetaData(ServiceProxyMetaDataContext.getMetaData())
         .setRequestID(requestID)
         .setResponse(
             serializer.serializeB64(invocationResult)
@@ -284,6 +318,7 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
 
   private ServiceResponseMessage createException(UUID requestID, Serializer serializer, Exception e) throws IOException {
     return ServiceResponseMessage.builder()
+        .setMetaData(ServiceProxyMetaDataContext.getMetaData())
         .setRequestID(requestID)
         .setException(
             serializer.serializeB64(e)

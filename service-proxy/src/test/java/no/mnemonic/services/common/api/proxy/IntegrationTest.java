@@ -5,6 +5,7 @@ import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.ServiceSession;
 import no.mnemonic.services.common.api.ServiceSessionFactory;
 import no.mnemonic.services.common.api.proxy.client.ServiceClient;
+import no.mnemonic.services.common.api.proxy.client.ServiceClientMetaDataHandler;
 import no.mnemonic.services.common.api.proxy.client.ServiceV1HttpClient;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 import no.mnemonic.services.common.api.proxy.serializer.XStreamSerializer;
@@ -18,18 +19,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.atLeast;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.*;
 
 /**
  * Test end-to-end client-to-service via a proxy setup
@@ -50,6 +48,8 @@ public class IntegrationTest {
   private ServiceSessionFactory sessionFactory;
   @Mock
   private ServiceSession session;
+  @Mock
+  private ServiceClientMetaDataHandler metaDataHandler;
 
   private TestService serviceClient;
 
@@ -83,6 +83,8 @@ public class IntegrationTest {
         .setProxyInterface(TestService.class)
         .setV1HttpClient(httpClient)
         .setSerializer(serializer)
+        .withMetaDataHandler(metaDataHandler)
+        .withExtender(TestService.MyExtendedResultSet.class, new TestService.MyExtendedResultSetExtender())
         .build()
         .getInstance();
   }
@@ -119,16 +121,50 @@ public class IntegrationTest {
   }
 
   @Test
-  void testInvokeExtendedResultSetMethod() throws TestException {
+  void testHandleServerSideMetadata() throws TestException {
+    when(mockedService.getString(any())).thenAnswer(i->{
+      ServiceProxyMetaDataContext.put("metakey", "metavalue");
+      return "result";
+    });
+    assertEquals("result", serviceClient.getString("arg"));
+    verify(mockedService).getString("arg");
+    verify(metaDataHandler).handle(
+            argThat(m->m.getName().equals("getString")),
+            argThat(md-> Objects.equals(ListUtils.list(md.get("metakey")), ListUtils.list("metavalue")))
+    );
+  }
+
+
+  @Test
+  void testInvokeAnnotaedResultSetMethod() throws TestException {
     when(mockedService.getMyAnnotatedResultSet(any())).thenReturn(TestService.MyAnnotatedResultSet.<String>builder()
+        .setToken("mytoken")
         .setIterator(ListUtils.list(
             "a", "b", "c"
         ).iterator())
         .build());
-    ResultSet<String> result = serviceClient.getMyAnnotatedResultSet("arg");
+    TestService.MyAnnotatedResultSet<String> result = serviceClient.getMyAnnotatedResultSet("arg");
+    assertEquals("mytoken", result.getToken());
     assertInstanceOf(TestService.MyAnnotatedResultSet.class, result);
     assertEquals(ListUtils.list("a", "b", "c"), ListUtils.list(result.iterator()));
     verify(mockedService).getMyAnnotatedResultSet("arg");
+  }
+
+  @Test
+  void testInvokeExtendedResultSetMethod() throws TestException {
+    when(mockedService.getMyExtendedResultSet(any())).thenAnswer(i->{
+      ServiceProxyMetaDataContext.put(TestService.MyExtendedResultSetExtender.METADATA_KEY, "metavalue");
+      return TestService.MyExtendedResultSet.<String>builder()
+              .setIterator(ListUtils.list(
+                      "a", "b", "c"
+              ).iterator())
+              .build();
+    });
+    TestService.MyExtendedResultSet<String> result = serviceClient.getMyExtendedResultSet("arg");
+    assertEquals("metavalue", result.getMetaKey());
+    assertInstanceOf(TestService.MyExtendedResultSet.class, result);
+    assertEquals(ListUtils.list("a", "b", "c"), ListUtils.list(result.iterator()));
+    verify(mockedService).getMyExtendedResultSet("arg");
   }
 
   @Test

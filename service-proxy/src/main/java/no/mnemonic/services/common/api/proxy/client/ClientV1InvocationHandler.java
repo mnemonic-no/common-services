@@ -11,8 +11,10 @@ import no.mnemonic.commons.metrics.Metrics;
 import no.mnemonic.commons.metrics.MetricsData;
 import no.mnemonic.commons.metrics.TimerContext;
 import no.mnemonic.commons.utilities.collections.CollectionUtils;
+import no.mnemonic.commons.utilities.collections.MapUtils;
 import no.mnemonic.services.common.api.Resource;
 import no.mnemonic.services.common.api.ResultSet;
+import no.mnemonic.services.common.api.ResultSetExtender;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.ServiceContext;
 import no.mnemonic.services.common.api.annotations.ResultSetExtention;
@@ -23,13 +25,16 @@ import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static no.mnemonic.commons.utilities.ObjectUtils.ifNotNull;
+import static no.mnemonic.commons.utilities.collections.ListUtils.list;
 import static no.mnemonic.commons.utilities.collections.SetUtils.set;
 import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
 
@@ -60,9 +65,10 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
   @NonNull
   private final Serializer serializer;
   @NonNull
-  private final Map<Class<?>, Function<ResultSet<?>, ? extends ResultSet<?>>> extenderFunctions;
+  private final Map<Class<?>, ResultSetExtender<?>> extenderFunctions;
   @NonNull
   private final ObjectMapper mapper;
+  private final List<ServiceClientMetaDataHandler> metaDataHandlers;
 
   private static final ThreadLocal<Set<ResourceWrapper>> threadResources = new ThreadLocal<>();
 
@@ -158,26 +164,36 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
               request.getPriority(),
               request
       )) {
-        return serviceMessageConverter.readResponseMessage(response.getContent());
+        ServiceMessageConverter.Response decodedResponse = serviceMessageConverter.readResponseMessage(response.getContent());
+        list(metaDataHandlers).forEach(h->h.handle(method, MapUtils.map(decodedResponse.getMetaData())));
+        return decodedResponse.getResponse();
       }
     }
 
   }
 
   private <R> ResultSet<R> handleResultSet(Method invokedMethod, ServiceResponseContext response) throws Exception {
+    //wrap response context with a closeable resource
     Resource resultSetCloser = wrapResource(response);
+
+    ClientResultSet<R> resultSet = new ResultSetParser(mapper, serializer).parse(response.getContent(), resultSetCloser);
+    //notify any metadata handlers
+    if (resultSet != null) {
+      list(metaDataHandlers).forEach(h -> h.handle(invokedMethod, MapUtils.map(resultSet.getMetaData())));
+    }
+
     if (invokedMethod.getReturnType().equals(ResultSet.class)) {
-      return new ResultSetParser(mapper, serializer).parse(response.getContent(), resultSetCloser);
+      return resultSet;
     } else {
       //if the declared method returns a subclass of ResultSet, we may need an extender function
-      Function<ResultSet<?>, ? extends ResultSet<?>> extender = extenderFunctions.computeIfAbsent(invokedMethod.getReturnType(), this::resolveExtenderFunction);
-      //extend the declared return type to the correct subclass
+      ResultSetExtender<?> extender = extenderFunctions.computeIfAbsent(invokedMethod.getReturnType(), this::resolveExtenderFunction);
+      //extend the declared return type to the correct subclass, possibly using metadata
       //noinspection unchecked
-      return (ResultSet<R>) extender.apply(new ResultSetParser(mapper, serializer).parse(response.getContent(), resultSetCloser));
+      return (ResultSet<R>) extender.extend(resultSet, ifNotNull(resultSet, ClientResultSet::getMetaData, new HashMap<>()));
     }
   }
 
-  private Function<ResultSet<?>, ? extends ResultSet<?>> resolveExtenderFunction(Class<?> declaredReturnType) {
+  private ResultSetExtender<?> resolveExtenderFunction(Class<?> declaredReturnType) {
     ResultSetExtention resultSetExtention = declaredReturnType.getAnnotation(ResultSetExtention.class);
     if (resultSetExtention == null) {
       throw new IllegalStateException("Declared returntype of invoked method is a subclass of ResultSet, but no extender function is defined for this type: " + declaredReturnType);

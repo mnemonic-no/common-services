@@ -12,6 +12,7 @@ import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Map;
 
 import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
 
@@ -19,6 +20,8 @@ import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
 @CustomLog
 public class ClientResultSet<T> implements ResultSet<T> {
 
+  // The invocation metadata transported by this resultset
+  private final Map<String, String> metaData;
   private final Serializer serializer;
   private final int count;
   private final int limit;
@@ -27,6 +30,13 @@ public class ClientResultSet<T> implements ResultSet<T> {
   private final Resource resource;
 
   private boolean closed;
+
+  /**
+   * @return invocation metadata sent from the service
+   */
+  public Map<String, String> getMetaData() {
+    return metaData;
+  }
 
   @Override
   public int getCount() {

@@ -3,6 +3,7 @@ package no.mnemonic.services.common.api.proxy.messages;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import no.mnemonic.commons.utilities.collections.MapUtils;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -16,6 +17,9 @@ class ServiceResponseMessageTest {
     @Test
     void testSerialization() throws JsonProcessingException {
         ServiceResponseMessage msg = ServiceResponseMessage.builder()
+                .setMetaData(MapUtils.map(
+                        MapUtils.pair("key", "value")
+                ))
                 .setResponse("<serialized response>")
                 .setRequestID(UUID.randomUUID())
                 .setException("<serialized exception>")
@@ -26,5 +30,6 @@ class ServiceResponseMessageTest {
         assertEquals(msg.getRequestID(), deserialized.getRequestID());
         assertEquals(msg.getResponse(), deserialized.getResponse());
         assertEquals(msg.getException(), deserialized.getException());
+        assertEquals(msg.getMetaData(), deserialized.getMetaData());
     }
 }

@@ -10,7 +10,10 @@ import no.mnemonic.commons.utilities.lambda.LambdaUtils;
 import no.mnemonic.services.common.api.Resource;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * ResultSet implementation reading data from a Service Proxy HTTP response
@@ -39,6 +42,7 @@ public class ResultSetParser {
       int count, limit, offset;
       count = limit = offset = 0;
       JsonParser data = null;
+      Map<String, String> metaData = new HashMap<>();
 
       //stop looking for new fields when we reach end-object, or when the data array is found
       assertThat(SetUtils.in(parser.nextToken(), JsonToken.FIELD_NAME, JsonToken.END_OBJECT), "Expected field-name or end-of-object");
@@ -57,6 +61,14 @@ public class ResultSetParser {
           case "offset":
             assertThat(parser.nextToken() == JsonToken.VALUE_NUMBER_INT, "Expected int-value");
             offset = parser.getIntValue();
+            assertThat(SetUtils.in(parser.nextToken(), JsonToken.FIELD_NAME, JsonToken.END_OBJECT), "Expected field-name or end-of-object");
+            continue;
+          case "metaData":
+            assertThat(SetUtils.in(parser.nextToken(), JsonToken.START_OBJECT, JsonToken.VALUE_NULL), "Expected metadata object (or null)");
+            if (parser.currentToken() == JsonToken.START_OBJECT) {
+              assertThat(SetUtils.in(parser.nextToken(), JsonToken.FIELD_NAME, JsonToken.END_OBJECT), "Expected metadata field-name or end-of-object");
+              parseMetaData(parser, metaData);
+            }
             assertThat(SetUtils.in(parser.nextToken(), JsonToken.FIELD_NAME, JsonToken.END_OBJECT), "Expected field-name or end-of-object");
             continue;
           case "exception":
@@ -81,7 +93,7 @@ public class ResultSetParser {
         return null;
       }
       //at this point, the response is still left open
-      return new ClientResultSet<>(serializer, count, limit, offset, data, resource);
+      return new ClientResultSet<>(metaData, serializer, count, limit, offset, data, resource);
     } catch (RuntimeException e) {
       LOGGER.error(e, "Error parsing resultset");
       //make sure response is closed if parser stops processing here
@@ -92,6 +104,18 @@ public class ResultSetParser {
       //make sure response is closed if parser stops processing here
       cancelResources(response, resource);
       throw e;
+    }
+  }
+
+  private void parseMetaData(JsonParser parser, Map<String, String> metaData) throws IOException {
+    while (parser.currentToken() != JsonToken.END_OBJECT) {
+      if (parser.currentToken() == JsonToken.FIELD_NAME) {
+        String key = parser.getValueAsString();
+        assertThat(SetUtils.in(parser.nextToken(), JsonToken.VALUE_STRING, JsonToken.VALUE_NULL), "Expected metadata value (or null)");
+        String value = parser.getValueAsString();
+        metaData.put(key, value);
+      }
+      assertThat(SetUtils.in(parser.nextToken(), JsonToken.FIELD_NAME, JsonToken.END_OBJECT), "Expected next metadata key or metadata end-of-object");
     }
   }
 

@@ -203,3 +203,90 @@ To invoke the service proxy, set up
 The instance returned from the proxy implements the service interface, 
 and will proxy every invocation to the service proxy.
 
+## Extending the response
+
+In some use cases, it is required to pass additional data back to the client, than what is part of the response class.
+* If the response class is extending the generic `ResultSet` interface, with additional top-level metadata (not content per resultset item)
+* If the data to return is a cross-cutting concern (not something to put into every response class)
+
+### Implementing an extended ResultSet interface
+
+* Define your own interface extending `ResultSet`, with additional properties.
+* Use the `ResultSetExtention` annotation to attach a `ResultSetExtender` to the response type
+* Implement `ResultSetExtender.extract` to extract a set of metadata keys to represent the extended information.
+* Implement `ResultSetExtender.extend` to create the extended ResultSet
+
+Example:
+```java
+  @ResultSetExtention(extender = MyResultSetExtender.class)
+  interface MyAnnotatedResultSet<T> extends ResultSet<T> {
+    String getToken();
+  }
+
+  public class MyResultSetExtender implements ResultSetExtender<MyAnnotatedResultSet> {
+
+    public static final String METADATA_KEY = "token";
+
+    @Override
+    public MyAnnotatedResultSet extend(ResultSet rs, Map<String, String> metaData) {
+      return MyAnnotatedResultSetImpl.builder()
+              .setIterator((Iterator<Object>) rs.iterator())
+              .setCount(rs.getCount())
+              .setOffset(rs.getOffset())
+              .setLimit(rs.getLimit())
+              //resolve token from metadata
+              .setToken(metaData.get(METADATA_KEY))
+              .build();
+    }
+
+    @Override
+    public Map<String, String> extract(MyAnnotatedResultSet extendedResultSet) {
+      return MapUtils.map(MapUtils.pair(METADATA_KEY, extendedResultSet.getToken()));
+    }
+
+  }
+```
+
+### Implementing use of cross-cutting metadata handlers
+
+This mechanism is useful to carry service-side extra information to the client side, for _many_ endpoints, without having to change all endpoint response structures.
+Example is auditing records or other context information which is needed for a generic solution (monitoring, logging, etc).
+
+On the server side:
+* Add server-side code to record your metadata
+* Add a cross-cutting interceptor to put the metadata into the `ServiceProxyMetaDataContext`
+
+On the client side:
+* Register a `ServiceClientMetaDataHandler` to be notified about the metadata from the service
+
+Example:
+
+On the server side; register an invocation handler which writes the metadata, for example in a cross-cutting method `InvocationHandler`:
+```java
+public class MyServiceInvocationHandler implements InvocationHandler {
+  public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+    
+    //register metadata from somewhere
+    ServiceProxyMetaDataContext.putAll(MetaDataRegistry.getMetaData());
+
+  }
+}
+```
+
+On the client side, pick up the metadata when the response is deserialized:
+```java
+
+  public class MyMetaDataHandler implements ServiceClientMetaDataHandler {
+    public void handle(Method method, Map<String, String> metaData) {
+      //do something with the metadata
+    }
+  }
+
+  TestService service = ServiceClient.<TestService>builder()
+        .setProxyInterface(TestService.class)
+        .setV1HttpClient(httpClient)
+        .setSerializer(serializer)
+        .withMetaDataHandler(new MyMetaDataHandler()) //register the metadata handler
+        .build()
+        .getInstance();
+```

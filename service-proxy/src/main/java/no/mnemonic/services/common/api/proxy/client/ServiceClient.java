@@ -11,16 +11,19 @@ import no.mnemonic.commons.metrics.MetricAspect;
 import no.mnemonic.commons.metrics.MetricException;
 import no.mnemonic.commons.metrics.Metrics;
 import no.mnemonic.commons.metrics.MetricsGroup;
+import no.mnemonic.commons.utilities.collections.ListUtils;
 import no.mnemonic.services.common.api.ResultSet;
+import no.mnemonic.services.common.api.ResultSetExtender;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.ServiceContext;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 import static no.mnemonic.commons.utilities.ObjectUtils.ifNull;
 import static no.mnemonic.services.common.api.ServiceContext.Priority.standard;
@@ -52,7 +55,10 @@ public class ServiceClient<T extends Service> implements MetricAspect {
   @NonNull
   private final Serializer serializer;
   @NonNull
-  private final Map<Class<?>, Function<ResultSet<?>, ? extends ResultSet<?>>> extenderFunctions;
+  private final Map<Class<?>, ResultSetExtender<?>> extenderFunctions;
+  @Builder.Default
+  private final List<ServiceClientMetaDataHandler> metaDataHandlers = new ArrayList<>();
+
   @Builder.Default
   private final int readMaxStringLength = DEFAULT_MAX_STRING_LENGTH;
 
@@ -122,6 +128,7 @@ public class ServiceClient<T extends Service> implements MetricAspect {
         .setProxyInterface(proxyInterface)
         .setSerializer(serializer)
         .setExtenderFunctions(extenderFunctions)
+        .setMetaDataHandlers(metaDataHandlers)
         .setMapper(createMapper())
         .build();
   }
@@ -180,8 +187,23 @@ public class ServiceClient<T extends Service> implements MetricAspect {
       this.extenderFunctions = new HashMap<>();
     }
 
-    public <R extends ResultSet<?>> ServiceClientBuilder<T> withExtenderFunction(Class<R> returnType, Function<ResultSet<?>, R> extenderFunction) {
+    /**
+     * Register an resultset extender implementation
+     * @param returnType the type of resultset to extend to
+     * @param extenderFunction the extenderfunction to use to convert the standard resultset to the returntype
+     */
+    public <R extends ResultSet<?>> ServiceClientBuilder<T> withExtender(Class<R> returnType, ResultSetExtender<R> extenderFunction) {
       this.extenderFunctions.put(returnType, extenderFunction);
+      return this;
+    }
+
+    /**
+     * Register a metadata handler which will be invoked with metadata returned to the client
+     * @param handler handler implementation
+     */
+    public ServiceClientBuilder<T> withMetaDataHandler(ServiceClientMetaDataHandler handler) {
+      this.metaDataHandlers$set = true;
+      this.metaDataHandlers$value = ListUtils.addToList(this.metaDataHandlers$value, handler);
       return this;
     }
   }

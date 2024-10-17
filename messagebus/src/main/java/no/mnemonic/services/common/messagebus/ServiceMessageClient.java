@@ -12,6 +12,7 @@ import no.mnemonic.messaging.requestsink.MessagingInterruptedException;
 import no.mnemonic.messaging.requestsink.RequestHandler;
 import no.mnemonic.messaging.requestsink.RequestSink;
 import no.mnemonic.services.common.api.ResultSet;
+import no.mnemonic.services.common.api.ResultSetExtender;
 import no.mnemonic.services.common.api.ResultSetStreamInterruptedException;
 import no.mnemonic.services.common.api.Service;
 import no.mnemonic.services.common.api.ServiceContext;
@@ -29,7 +30,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Function;
 
 import static no.mnemonic.commons.utilities.ObjectUtils.ifNull;
 import static no.mnemonic.services.common.api.ServiceContext.Priority.standard;
@@ -71,7 +71,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
   private final Class<T> proxyInterface;
   private final RequestSink requestSink;
   private final ServiceContext.Priority defaultPriority;
-  private final Map<Class<?>, Function<ResultSet<?>, ? extends ResultSet<?>>> extenderFunctions;
+  private final Map<Class<?>, ResultSetExtender<?>> extenderFunctions;
   private final ThreadLocal<ServiceContext.Priority> threadPriority = new ThreadLocal<>();
   private final ThreadLocal<ServiceContext.Priority> nextPriority = new ThreadLocal<>();
   private final ThreadLocal<Integer> nextResponseWindowSize = new ThreadLocal<>();
@@ -102,7 +102,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
                                RequestSink requestSink,
                                long maxWait,
                                ServiceContext.Priority defaultPriority,
-                               Map<Class<?>, Function<ResultSet<?>, ? extends ResultSet<?>>> extenderFunctions) {
+                               Map<Class<?>, ResultSetExtender<?>> extenderFunctions) {
     this.maxWait = maxWait;
     this.proxyInterface = proxyInterface;
     this.requestSink = requestSink;
@@ -325,17 +325,18 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     } else {
       //if the declared method returns a subclass of ResultSet, we may need an extender function to
       //extend the declared return type to the correct subclass
-      Function<ResultSet<?>, ? extends ResultSet<?>> extender = extenderFunctions.computeIfAbsent(invokedMethod.getReturnType(), this::resolveExtenderFunction);
+      ResultSetExtender<?> extender = extenderFunctions.computeIfAbsent(invokedMethod.getReturnType(), this::resolveExtenderFunction);
       //convert streaming resultset using extender function
       //noinspection unchecked
-      return (R) extender.apply(new StreamingResultSetContext<R>(handler, invokedMethod, error -> {
+      StreamingResultSetContext<R> resultSet = new StreamingResultSetContext<>(handler, invokedMethod, error -> {
         streamingInterrupted.increment();
         handler.abort();
-      }));
+      });
+      return (R) extender.extend(resultSet, null);
     }
   }
 
-  private Function<ResultSet<?>, ? extends ResultSet<?>> resolveExtenderFunction(Class<?> declaredReturnType) {
+  private ResultSetExtender<?> resolveExtenderFunction(Class<?> declaredReturnType) {
     ResultSetExtention resultSetExtention = declaredReturnType.getAnnotation(ResultSetExtention.class);
     if (resultSetExtention == null) {
       throw new IllegalStateException("Declared returntype of invoked method is a subclass of ResultSet, but no extender function is defined for this type: " + declaredReturnType);
@@ -363,7 +364,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
     private Class<V> proxyInterface;
     private RequestSink requestSink;
     private ServiceContext.Priority defaultPriority = standard;
-    private final Map<Class<?>, Function<ResultSet<?>, ? extends ResultSet<?>>> extenderFunctions = new HashMap<>();
+    private final Map<Class<?>, ResultSetExtender<?>> extenderFunctions = new HashMap<>();
 
     public ServiceMessageClient<V> build() {
       if (proxyInterface == null) throw new IllegalArgumentException("proxyInterface not set");
@@ -379,7 +380,7 @@ public class ServiceMessageClient<T extends Service> implements MetricAspect {
       return this;
     }
 
-    public <R extends ResultSet<?>> Builder<V> withExtenderFunction(Class<R> returnType, Function<ResultSet<?>, R> extenderFunction) {
+    public <R extends ResultSet<?>> Builder<V> withExtenderFunction(Class<R> returnType, ResultSetExtender<R> extenderFunction) {
       this.extenderFunctions.put(returnType, extenderFunction);
       return this;
     }
