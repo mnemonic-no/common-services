@@ -3,7 +3,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [0.6.12] - 2024-05-30
+## [0.6.13] - 2024-10-25
+### Fix
+ARGUS-46660
+- Added missing method `ServiceProxyMetaDataContext.isSet()`
+
+See [documentation](docs/SERVICE-BUS.md#extending-the-response) for more details.
+
+## [0.6.12] - 2024-10-20
 ### Added
 ARGUS-46660
 - Added `ServiceProxyMetaDataContext` to allow service process to register metadata to be added to the resultset sent back to the client

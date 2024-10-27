@@ -82,6 +82,14 @@ public class ServiceProxyMetaDataContext implements Closeable {
     return ctx.metaData;
   }
 
+  /**
+   *
+   * @return true if the context is set for this thread
+   */
+  public static boolean isSet() {
+    return CONTEXT.get() != null;
+  }
+
   @Override
   public void close() {
     CONTEXT.remove();
