@@ -41,25 +41,25 @@
     <jdk.version>1.8</jdk.version>
 
     <!-- mnemonic dependencies -->
-    <mnemonic.commons.version>0.4.25</mnemonic.commons.version>
-    <mnemonic.messaging.version>1.4.0</mnemonic.messaging.version>
+    <mnemonic.commons.version>0.5.0</mnemonic.commons.version>
+    <mnemonic.messaging.version>1.4.11</mnemonic.messaging.version>
 
     <!-- external dependencies -->
     <activemq.version>5.18.2</activemq.version>
     <hazelcast3.version>3.12.13</hazelcast3.version>
-    <hazelcast5.version>5.3.1</hazelcast5.version>
+    <hazelcast5.version>5.5.0</hazelcast5.version>
     <jakarta.inject.version>1.0.5</jakarta.inject.version>
     <jaxb.version>2.3.3</jaxb.version>
     <junit.version>4.13.2</junit.version>
-    <junit.jupiter.version>5.10.0</junit.jupiter.version>
-    <mockito.version>4.11.0</mockito.version>
+    <junit.jupiter.version>5.11.3</junit.jupiter.version>
+    <mockito.version>5.14.2</mockito.version>
     <swagger.version>1.6.9</swagger.version>
-    <lombok.version>1.18.30</lombok.version>
+    <lombok.version>1.18.34</lombok.version>
     <xstream.version>1.4.20</xstream.version>
-    <jackson.version>2.16.1</jackson.version>
-    <wiremock.version>2.27.2</wiremock.version>
-    <jetty.version>10.0.20</jetty.version>
-    <apache.http.version>5.3</apache.http.version>
+    <jackson.version>2.18.1</jackson.version>
+    <wiremock.version>3.0.1</wiremock.version>
+    <jetty.version>10.0.24</jetty.version>
+    <apache.http.version>5.4.1</apache.http.version>
 
     <!-- build dependencies -->
     <maven.clean.version>3.1.0</maven.clean.version>
