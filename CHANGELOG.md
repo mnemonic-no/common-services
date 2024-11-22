@@ -3,12 +3,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.15] - 2024-10-25
+### Fix
+ARGUS-47757
+- Fix backwards incompatible change in `ServiceResponseMessage`, when metadata is not requested (nor returned); 
+  a pre-0.6.12 client `ResultSetParser` will fail to deserialize the message because the `metaData` key is unknown.
+- This fix omits the metaData from the JSON document if it is not set.
+
 ## [0.6.13] - 2024-10-25
 ### Fix
 ARGUS-46660
 - Added missing method `ServiceProxyMetaDataContext.isSet()`
-
-See [documentation](docs/SERVICE-BUS.md#extending-the-response) for more details.
 
 ## [0.6.12] - 2024-10-20
 ### Added
