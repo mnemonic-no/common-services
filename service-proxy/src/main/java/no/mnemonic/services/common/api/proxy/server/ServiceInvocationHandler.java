@@ -42,9 +42,7 @@ import java.util.concurrent.atomic.LongAdder;
 import static no.mnemonic.commons.utilities.ObjectUtils.ifNull;
 import static no.mnemonic.commons.utilities.collections.SetUtils.set;
 import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
-import static no.mnemonic.services.common.api.proxy.Utils.HTTP_OK_RESPONSE;
-import static no.mnemonic.services.common.api.proxy.Utils.toArgs;
-import static no.mnemonic.services.common.api.proxy.Utils.toTypes;
+import static no.mnemonic.services.common.api.proxy.Utils.*;
 
 /**
  * This handler deals with the actual invocation of methods on the proxied service,
@@ -272,12 +270,15 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
         generator.writeArrayFieldStart("data");
 
         //write streaming result directly to output stream, to avoid memory buildup
-        for (Object o : resultSet) {
-          generator.writeString(
-                  serializer.serializeB64(o)
-          );
+        try {
+          for (Object o : resultSet) {
+            generator.writeString(
+                    serializer.serializeB64(o)
+            );
+          }
+        } finally {
+          generator.writeEndArray();
         }
-        generator.writeEndArray();
       } catch (Exception e) {
         //cancel resultset if abrupt failure
         LOGGER.error(e, "Error when writing ResultSet");

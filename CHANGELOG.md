@@ -3,6 +3,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.16] - 2024-12-09
+### Fix
+ARGUS-48286
+- Handle iteration error when writing streaming response in `ServiceInvocationHandler`.
+- Avoid error message `com.fasterxml.jackson.core.JsonGenerationException: Current context not Object but Array` when iteration fails.
+
 ## [0.6.15] - 2024-10-25
 ### Fix
 ARGUS-47757
