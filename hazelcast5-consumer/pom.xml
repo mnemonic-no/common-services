@@ -50,11 +50,6 @@
       <version>${hazelcast5.version}</version>
       <scope>provided</scope>
     </dependency>
-    <dependency>
-      <groupId>jakarta.inject</groupId>
-      <artifactId>jakarta.inject-api</artifactId>
-      <version>${jakarta.inject.version}</version>
-    </dependency>
 
     <!-- test deps -->
     <dependency>

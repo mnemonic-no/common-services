@@ -117,7 +117,7 @@ public class MyHazelcastToConsumerHandlerProvider implements LifecycleAspect, Me
     HazelcastTransactionalConsumerHandler<MyMessage> h = new HazelcastTransactionalConsumerHandler<>(
             hazelcastInstance,
             "QueueName",
-            consumerProvider
+            consumerProvider::get
     ).setWorkerCount(workerThreads);
     h.startComponent();
     handler.set(h);

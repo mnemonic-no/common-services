@@ -9,7 +9,6 @@ import no.mnemonic.commons.metrics.MetricAspect;
 import no.mnemonic.commons.metrics.MetricException;
 import no.mnemonic.commons.metrics.MetricsData;
 
-import javax.inject.Provider;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -21,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static no.mnemonic.commons.utilities.ObjectUtils.ifNotNull;
 
@@ -37,7 +37,7 @@ public class HazelcastTransactionalConsumerHandler<T> extends HazelcastTransacti
   private static final Duration DEFAULT_TERMINATION_TIMEOUT = Duration.ofSeconds(10);
 
   @Dependency
-  private final Provider<TransactionalConsumer<T>> consumerProvider;
+  private final Supplier<TransactionalConsumer<T>> consumerProvider;
 
   private int workerCount = DEFAULT_WORKERS_COUNT;
   private Duration terminationTimeout = DEFAULT_TERMINATION_TIMEOUT;
@@ -50,7 +50,7 @@ public class HazelcastTransactionalConsumerHandler<T> extends HazelcastTransacti
   public HazelcastTransactionalConsumerHandler(
           HazelcastInstance hazelcastInstance,
           String hazelcastQueueName,
-          Provider<TransactionalConsumer<T>> consumerProvider) {
+          Supplier<TransactionalConsumer<T>> consumerProvider) {
     super(hazelcastInstance, hazelcastQueueName);
     if (consumerProvider == null) throw new IllegalArgumentException("consumerProvider not provided");
     this.consumerProvider = consumerProvider;

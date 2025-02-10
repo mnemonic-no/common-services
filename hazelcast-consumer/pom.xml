@@ -49,11 +49,6 @@
       <artifactId>hazelcast</artifactId>
       <version>${hazelcast3.version}</version>
     </dependency>
-    <dependency>
-      <groupId>jakarta.inject</groupId>
-      <artifactId>jakarta.inject-api</artifactId>
-      <version>${jakarta.inject.version}</version>
-    </dependency>
 
     <!-- test deps -->
     <dependency>

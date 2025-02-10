@@ -3,6 +3,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.17] - 2025-02-10
+### Changed
+ARGUS-49190
+- Changed constructor of HazelcastTransactionalConsumerHandler to accept `Supplier<TransactionalConsumer<T>>`
+instead of `Provider<TransactionalConsumer<T>>`.
+- Removed dependency on `javax.inject`.
+
+### Upgrade notes
+Either change your `Provider` implementation to use `Supplier`, or wrap your `Provider` inside a `Supplier`
+before passing to HazelcastTransactionalConsumerHandler.
+
 ## [0.6.16] - 2024-12-09
 ### Fix
 ARGUS-48286

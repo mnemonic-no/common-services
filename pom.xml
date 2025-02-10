@@ -48,7 +48,6 @@
     <activemq.version>5.18.2</activemq.version>
     <hazelcast3.version>3.12.13</hazelcast3.version>
     <hazelcast5.version>5.5.0</hazelcast5.version>
-    <jakarta.inject.version>1.0.5</jakarta.inject.version>
     <jaxb.version>2.3.3</jaxb.version>
     <junit.version>4.13.2</junit.version>
     <junit.jupiter.version>5.11.3</junit.jupiter.version>
