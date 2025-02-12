@@ -3,6 +3,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.18] - 2025-02-12
+### Added
+ARGUS-49212
+- Created a copy of the `service-proxy` module called `service-proxy-jakarta`. Both modules are functionally equivalent.
+- Use `service-proxy` if you need Jetty 10 and `javax.servlet`.
+- Use `service-proxy-jakarta` if you need Jetty 12 and `jakarta.servlet`.
+
 ## [0.6.17] - 2025-02-10
 ### Changed
 ARGUS-49190

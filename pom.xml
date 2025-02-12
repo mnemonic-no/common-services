@@ -58,6 +58,7 @@
     <jackson.version>2.18.1</jackson.version>
     <wiremock.version>3.0.1</wiremock.version>
     <jetty.version>10.0.24</jetty.version>
+    <jetty.jakarta.version>12.0.16</jetty.jakarta.version>
     <apache.http.version>5.4.1</apache.http.version>
 
     <!-- build dependencies -->
@@ -84,6 +85,7 @@
     <module>hazelcast5-consumer</module>
     <module>service-api</module>
     <module>service-proxy</module>
+    <module>service-proxy-jakarta</module>
     <module>messagebus</module>
   </modules>
 
@@ -132,9 +134,9 @@
                 <requireMavenVersion>
                   <version>3.0.5</version>
                 </requireMavenVersion>
-                <!-- At least JDK11 is required for building. -->
+                <!-- At least JDK17 is required for building. -->
                 <requireJavaVersion>
-                  <version>11.0.0</version>
+                  <version>17.0.0</version>
                 </requireJavaVersion>
               </rules>
             </configuration>

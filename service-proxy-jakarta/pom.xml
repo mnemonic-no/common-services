@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <artifactId>service-proxy</artifactId>
+  <artifactId>service-proxy-jakarta</artifactId>
 
   <parent>
     <groupId>no.mnemonic.services.common</groupId>
@@ -9,8 +9,8 @@
     <version>0.6.18-SNAPSHOT</version>
   </parent>
 
-  <name>mnemonic common services - service proxy (Jetty 10 + javax namespace)</name>
-  <description>Remote invocation service proxy (Jetty 10 + javax namespace)</description>
+  <name>mnemonic common services - service proxy (Jetty 12 + jakarta namespace)</name>
+  <description>Remote invocation service proxy (Jetty 12 + jakarta namespace)</description>
 
   <dependencies>
     <dependency>
@@ -52,22 +52,22 @@
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-server</artifactId>
-      <version>${jetty.version}</version>
+      <version>${jetty.jakarta.version}</version>
     </dependency>
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-util</artifactId>
-      <version>${jetty.version}</version>
+      <version>${jetty.jakarta.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty.ee10</groupId>
+      <artifactId>jetty-ee10-servlet</artifactId>
+      <version>${jetty.jakarta.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.httpcomponents.client5</groupId>
       <artifactId>httpclient5</artifactId>
       <version>${apache.http.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.eclipse.jetty</groupId>
-      <artifactId>jetty-servlet</artifactId>
-      <version>${jetty.version}</version>
     </dependency>
 
     <dependency>
