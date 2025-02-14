@@ -1,5 +1,6 @@
 package no.mnemonic.services.common.api.proxy;
 
+import no.mnemonic.commons.testtools.AvailablePortFinder;
 import no.mnemonic.services.common.api.ServiceContext;
 import no.mnemonic.services.common.api.ServiceSession;
 import no.mnemonic.services.common.api.ServiceSessionFactory;
@@ -37,13 +38,14 @@ import static org.mockito.Mockito.*;
 public class ConcurrencyTest {
 
   private static final String BASEURL = "http://localhost";
-  private static final int BULK_PORT = 9001;
-  private static final int DEFAULT_PORT = 9002;
-  private static final int EXPEDITE_PORT = 9003;
-  public static final int BULK_THREADS = 5;
-  public static final int STANDARD_THREADS = 10;
-  public static final int EXPEDITE_THREADS = 15;
-  public static final int CLIENT_THREADS = 20;
+  private static final int BULK_THREADS = 5;
+  private static final int STANDARD_THREADS = 10;
+  private static final int EXPEDITE_THREADS = 15;
+  private static final int CLIENT_THREADS = 20;
+
+  private final int bulkPort = AvailablePortFinder.getAvailablePort(9000);
+  private final int standardPort = AvailablePortFinder.getAvailablePort(10_000);
+  private final int expeditePort = AvailablePortFinder.getAvailablePort(11_000);
 
   private final ExecutorService executorService = Executors.newCachedThreadPool();
 
@@ -88,11 +90,11 @@ public class ConcurrencyTest {
         .build();
     proxy = ServiceProxy.builder()
         .addInvocationHandler(TestService.class, invocationHandler)
-        .setBulkPort(BULK_PORT)
+        .setBulkPort(bulkPort)
         .setBulkThreads(BULK_THREADS)
-        .setStandardPort(DEFAULT_PORT)
+        .setStandardPort(standardPort)
         .setStandardThreads(STANDARD_THREADS)
-        .setExpeditePort(EXPEDITE_PORT)
+        .setExpeditePort(expeditePort)
         .setExpediteThreads(EXPEDITE_THREADS)
         .build();
     proxy.startComponent();
@@ -101,6 +103,9 @@ public class ConcurrencyTest {
         .setMaxConnections(CLIENT_THREADS)
         .setDebugRequests(true)
         .setBaseURI(BASEURL)
+        .setBulkPort(bulkPort)
+        .setStandardPort(standardPort)
+        .setExpeditePort(expeditePort)
         .build();
     serviceClient = ServiceClient.<TestService>builder()
         .setProxyInterface(TestService.class)

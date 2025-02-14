@@ -1,5 +1,6 @@
 package no.mnemonic.services.common.api.proxy;
 
+import no.mnemonic.commons.testtools.AvailablePortFinder;
 import no.mnemonic.commons.utilities.collections.ListUtils;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.ServiceSession;
@@ -35,8 +36,11 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 public class IntegrationTest {
 
-  private static final String BASEURL = "http://localhost:9001";
+  private static final String BASEURL = "http://localhost";
 
+  private final int bulkPort = AvailablePortFinder.getAvailablePort(9000);
+  private final int standardPort = AvailablePortFinder.getAvailablePort(10_000);
+  private final int expeditePort = AvailablePortFinder.getAvailablePort(11_000);
   private final ExecutorService executorService = Executors.newCachedThreadPool();
 
   private ServiceProxy proxy;
@@ -72,12 +76,18 @@ public class IntegrationTest {
         .build();
     proxy = ServiceProxy.builder()
         .addInvocationHandler(TestService.class, invocationHandler)
+        .setBulkPort(bulkPort)
+        .setStandardPort(standardPort)
+        .setExpeditePort(expeditePort)
         .build();
     proxy.startComponent();
 
     ServiceV1HttpClient httpClient = ServiceV1HttpClient.builder()
         .setDebugRequests(true)
         .setBaseURI(BASEURL)
+        .setBulkPort(bulkPort)
+        .setStandardPort(standardPort)
+        .setExpeditePort(expeditePort)
         .build();
     serviceClient = ServiceClient.<TestService>builder()
         .setProxyInterface(TestService.class)

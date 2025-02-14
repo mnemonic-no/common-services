@@ -4,16 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import lombok.AllArgsConstructor;
+import no.mnemonic.commons.testtools.AvailablePortFinder;
 import no.mnemonic.commons.utilities.StreamUtils;
 import no.mnemonic.commons.utilities.collections.ListUtils;
 import no.mnemonic.services.common.api.ResultSet;
 import no.mnemonic.services.common.api.ServiceSession;
 import no.mnemonic.services.common.api.ServiceSessionFactory;
-import no.mnemonic.services.common.api.proxy.ResultSetImpl;
-import no.mnemonic.services.common.api.proxy.TestArgument;
-import no.mnemonic.services.common.api.proxy.TestException;
-import no.mnemonic.services.common.api.proxy.TestService;
-import no.mnemonic.services.common.api.proxy.Utils;
+import no.mnemonic.services.common.api.proxy.*;
 import no.mnemonic.services.common.api.proxy.messages.ServiceRequestMessage;
 import no.mnemonic.services.common.api.proxy.messages.ServiceResponseMessage;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
@@ -33,33 +30,25 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static no.mnemonic.commons.utilities.collections.ListUtils.list;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ServiceProxyTest {
 
   private static final ObjectMapper MAPPER = JsonMapper.builder().build();
-  public static final String BASE_URL = "http://localhost:9001";
-  public static final int MAX_READ_STRING_LENGTH = 100_000;
+  private static final String BASE_URL = "http://localhost";
+  private static final int MAX_READ_STRING_LENGTH = 100_000;
+
+  private final int bulkPort = AvailablePortFinder.getAvailablePort(9000);
+  private final int standardPort = AvailablePortFinder.getAvailablePort(10_000);
+  private final int expeditePort = AvailablePortFinder.getAvailablePort(11_000);
 
   private final ExecutorService executorService = Executors.newCachedThreadPool();
 
@@ -89,6 +78,9 @@ class ServiceProxyTest {
     proxy = ServiceProxy.builder()
             .addInvocationHandler(TestService.class, invocationHandler)
             .setReadMaxStringLength(MAX_READ_STRING_LENGTH)
+            .setBulkPort(bulkPort)
+            .setStandardPort(standardPort)
+            .setExpeditePort(expeditePort)
             .build();
   }
 
@@ -105,6 +97,9 @@ class ServiceProxyTest {
             .setStandardThreads(3)
             .setCircuitBreakerLimit(1)
             .setReadMaxStringLength(MAX_READ_STRING_LENGTH)
+            .setBulkPort(bulkPort)
+            .setStandardPort(standardPort)
+            .setExpeditePort(expeditePort)
             .build();
     proxy.startComponent();
     CountDownLatch latch = new CountDownLatch(1);
@@ -233,7 +228,7 @@ class ServiceProxyTest {
     }
     try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()) {
       HttpPost request = new HttpPost(URI.create(
-              String.format("%s/service/v1/%s/%s/%s", BASE_URL, TestService.class.getName(), resultset ? "resultset" : "single", method)
+              String.format("%s:%d/service/v1/%s/%s/%s", BASE_URL, bulkPort, TestService.class.getName(), resultset ? "resultset" : "single", method)
       ));
       request.setEntity(new StringEntity(MAPPER.writeValueAsString(requestBuilder.build())));
       return httpClient.execute(request, resp -> new Response(resp.getCode(), StreamUtils.readFullStream(resp.getEntity().getContent(), true)));
