@@ -9,7 +9,6 @@ mnemonic common services
 [![Javadocs](https://javadoc.io/badge/no.mnemonic.services.common/documentation.svg?color=orange&label=documentation)](https://javadoc.io/doc/no.mnemonic.services.common/documentation)
 [![Javadocs](https://javadoc.io/badge/no.mnemonic.services.common/hazelcast-consumer.svg?color=orange&label=hazelcast-consumer)](https://javadoc.io/doc/no.mnemonic.services.common/hazelcast-consumer)
 [![Javadocs](https://javadoc.io/badge/no.mnemonic.services.common/hazelcast5-consumer.svg?color=orange&label=hazelcast5-consumer)](https://javadoc.io/doc/no.mnemonic.services.common/hazelcast5-consumer)
-[![Javadocs](https://javadoc.io/badge/no.mnemonic.services.common/messagebus.svg?color=orange&label=messagebus)](https://javadoc.io/doc/no.mnemonic.services.common/messagebus)
 [![Javadocs](https://javadoc.io/badge/no.mnemonic.services.common/service-api.svg?color=orange&label=service-api)](https://javadoc.io/doc/no.mnemonic.services.common/service-api)
 [![Javadocs](https://javadoc.io/badge/no.mnemonic.services.common/service-proxy.svg?color=orange&label=service-proxy)](https://javadoc.io/doc/no.mnemonic.services.common/service-proxy)
 [![Javadocs](https://javadoc.io/badge/no.mnemonic.services.common/service-proxy-jakarta.svg?color=orange&label=service-proxy-jakarta)](https://javadoc.io/doc/no.mnemonic.services.common/service-proxy-jakarta)

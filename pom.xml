@@ -3,7 +3,7 @@
   <groupId>no.mnemonic.services.common</groupId>
   <artifactId>parent</artifactId>
   <packaging>pom</packaging>
-  <version>0.6.19-SNAPSHOT</version>
+  <version>0.7.0-SNAPSHOT</version>
 
   <name>mnemonic common services</name>
   <description>Reusable Java components for building scalable microservices</description>
@@ -45,7 +45,6 @@
     <mnemonic.messaging.version>1.4.11</mnemonic.messaging.version>
 
     <!-- external dependencies -->
-    <activemq.version>5.18.2</activemq.version>
     <hazelcast3.version>3.12.13</hazelcast3.version>
     <hazelcast5.version>5.5.0</hazelcast5.version>
     <jaxb.version>2.3.3</jaxb.version>
@@ -86,7 +85,6 @@
     <module>service-api</module>
     <module>service-proxy</module>
     <module>service-proxy-jakarta</module>
-    <module>messagebus</module>
   </modules>
 
   <scm>

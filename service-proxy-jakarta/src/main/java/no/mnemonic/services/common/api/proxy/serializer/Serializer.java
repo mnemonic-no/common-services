@@ -8,7 +8,7 @@ import java.util.Base64;
 public interface Serializer extends MetricAspect {
 
   /**
-   * @return a serializer identifier, to allow JMS receiver to distinguish between sender formats
+   * @return a serializer identifier, to allow receiver to distinguish between sender formats
    */
   String serializerID();
 

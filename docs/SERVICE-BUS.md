@@ -1,6 +1,6 @@
 # Service Bus
 
-The Service Bus providesa seamless remote invocation glue for a Java Service API.
+The Service Bus provides a seamless remote invocation glue for a Java Service API.
 
 The Service Bus is built with the following requirements:
 * Proxies a Java interface (the service interface), so the client can invoke the 
@@ -33,42 +33,6 @@ The base concepts are represented by the `service-api` package:
 * `ServiceContext` - context interface exposed by the Service Bus to interface with the Service Bus runtime.
 * `ServiceSessionFactory` - exposed by the service to open a session
 * `ServiceSession` - represents resources needed while invoking the service method, and streaming the result.
-
-There are two implementations of the Service Message Bus, 
-* using the RequestSink (async messaging over JMS)
-* using the HTTP-based ServiceProxy
-
-## Service Message Bus using RequestSink
-
-See package `messagebus`.
-
-This implementation is based on the `no.mnemonic.messaging:requestsink`
-library, which is mainly implemented on top of JMS.
-
-Using async messages, the `ServiceMessageClient` serializes the 
-method and arguments into a request message, which is sent to the configured `RequestSink`.
-The RequestSink will send keepalives and response(s) to the 
-clients `RequestContext`, before closing the request with an end-of-stream message.
-
-This allows the server to send a large resultset as stream of messages.
-
-The use of the async RequestSink clearly decouples the client and server, 
-as the client does not know where the server is, only where to send the message.
-The server only acts as a consumer of messages, sending responses back to the request context.
-
-The solution is meant to be easy to scale, by just adding more RequestSink consumers.
-The concurrency of each server component is controlled by how many concurrent messages
-each server component is allowed to consume.
-Since there is a queue between the client and server, the system has a natural
-backoff mechanism, resulting in the server discarding messages when overloaded, 
-and the clients timing out the requests.
-
-The RequestSink is mainly implemented using ActiveMQ, in a network-of-brokers configuration.
-The use of such a network is desireable to allow reconfiguration and restarts
-of the broker without service downtime.
-
-We are currently investigating alternatives to this implementation,
-as there are some stability issues with using ActiveMQ network-of-brokers.
 
 ## Service Proxy using HTTP
 

@@ -3,6 +3,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.7.0] - 2025-03-17
+### Removed
+ARGUS-49698
+- Removed `messagebus` libraries, as these are no longer maintained/in use.
+
 ## [0.6.18] - 2025-02-12
 ### Added
 ARGUS-49212
