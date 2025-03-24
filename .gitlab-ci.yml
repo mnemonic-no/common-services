@@ -37,6 +37,10 @@ trigger-maven-central-sync:
       when: never
     # only run on default branch
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - touch $HOME/.ssh/known_hosts && ssh-keygen -R osl-gitsync1 && ssh-keyscan osl-gitsync1 >> $HOME/.ssh/known_hosts
+    # protect the keyfile
+    - chmod 600 ${GITSYNC_KEY}
   script:
     - ssh -T -o IdentitiesOnly=yes -i ${GITSYNC_KEY} gitsync@osl-gitsync1 mvnsync ssh://git@gitlab.mnemonic.no:8022/development/backend/joss/common-services.git ${NO_SNAPSHOT_VERSION}
 
@@ -52,5 +56,9 @@ trigger-github-sync:
       when: never
     # only run on default branch
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - touch $HOME/.ssh/known_hosts && ssh-keygen -R osl-gitsync1 && ssh-keyscan osl-gitsync1 >> $HOME/.ssh/known_hosts
+    # protect the keyfile
+    - chmod 600 ${GITSYNC_KEY}
   script:
     - ssh -T -o IdentitiesOnly=yes -i ${GITSYNC_KEY} gitsync@osl-gitsync1 gitsync ssh://git@gitlab.mnemonic.no:8022/development/backend/joss/common-services.git https://github.com/mnemonic-no/common-services.git
