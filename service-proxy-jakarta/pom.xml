@@ -6,7 +6,7 @@
   <parent>
     <groupId>no.mnemonic.services.common</groupId>
     <artifactId>parent</artifactId>
-    <version>0.7.3</version>
+    <version>0.7.4-SNAPSHOT</version>
   </parent>
 
   <name>mnemonic common services - service proxy (Jetty 12 + jakarta namespace)</name>
