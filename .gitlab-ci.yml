@@ -42,7 +42,7 @@ trigger-maven-central-sync:
     # protect the keyfile
     - chmod 600 ${GITSYNC_KEY}
   script:
-    - ssh -T -o IdentitiesOnly=yes -i ${GITSYNC_KEY} gitsync@osl-gitsync1 mvnsync ssh://git@gitlab.mnemonic.no:8022/development/backend/joss/common-services.git ${NO_SNAPSHOT_VERSION}
+    - ssh -T -o IdentitiesOnly=yes -i ${GITSYNC_KEY} gitsync@osl-gitsync1 mvnsync https://git:${GITSYNC_TOKEN}@gitlab.mnemonic.no/development/backend/joss/common-services.git ${NO_SNAPSHOT_VERSION}
 
 # Job to trigger a sync to GitHub. Actual execution will be done on osl-gitsync1.!reference:
 # TODO: Set up dedicated runner instead of osl-gitsync1, and control build in this pipeline spec
@@ -61,4 +61,4 @@ trigger-github-sync:
     # protect the keyfile
     - chmod 600 ${GITSYNC_KEY}
   script:
-    - ssh -T -o IdentitiesOnly=yes -i ${GITSYNC_KEY} gitsync@osl-gitsync1 gitsync ssh://git@gitlab.mnemonic.no:8022/development/backend/joss/common-services.git https://github.com/mnemonic-no/common-services.git
+    - ssh -T -o IdentitiesOnly=yes -i ${GITSYNC_KEY} gitsync@osl-gitsync1 gitsync https://git:${GITSYNC_TOKEN}@gitlab.mnemonic.no/development/backend/joss/common-services.git https://github.com/mnemonic-no/common-services.git
