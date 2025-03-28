@@ -3,6 +3,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.8.0] - 2025-03-25
+### Added
+ARGUS-50254
+- Added new modules `documentchannel` and `documentchannel-kafka`, which are moved from `no.mnemonic.messaging` module
+- **NOTE** Users must update their package references from `no.mnemonic.messaging.documentchannel` to `no.mnemonic.services.common.documentchannel`
+
 ## [0.7.0] - 2025-03-17
 ### Removed
 ARGUS-49698

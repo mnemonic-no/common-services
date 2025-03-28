@@ -3,7 +3,7 @@
   <groupId>no.mnemonic.services.common</groupId>
   <artifactId>parent</artifactId>
   <packaging>pom</packaging>
-  <version>0.7.4-SNAPSHOT</version>
+  <version>0.8.0-SNAPSHOT</version>
 
   <name>mnemonic common services</name>
   <description>Reusable Java components for building scalable microservices</description>
@@ -42,7 +42,6 @@
 
     <!-- mnemonic dependencies -->
     <mnemonic.commons.version>0.5.0</mnemonic.commons.version>
-    <mnemonic.messaging.version>1.4.11</mnemonic.messaging.version>
 
     <!-- external dependencies -->
     <hazelcast3.version>3.12.13</hazelcast3.version>
@@ -59,6 +58,8 @@
     <jetty.version>10.0.24</jetty.version>
     <jetty.jakarta.version>12.0.16</jetty.jakarta.version>
     <apache.http.version>5.4.1</apache.http.version>
+    <kafka.clients.version>2.8.2</kafka.clients.version>
+    <palantir.docker.version>1.9.0</palantir.docker.version>
 
     <!-- build dependencies -->
     <maven.clean.version>3.1.0</maven.clean.version>
@@ -78,6 +79,8 @@
   </properties>
 
   <modules>
+    <module>documentchannel</module>
+    <module>documentchannel-kafka</module>
     <module>auth</module>
     <module>documentation</module>
     <module>hazelcast-consumer</module>
@@ -259,7 +262,7 @@
           <!-- Consolidate license names. -->
           <licenseMerges>
             <licenseMerge>BSD|BSD-3-Clause</licenseMerge>
-            <licenseMerge>Apache 2|Apache-2.0|ASF 2.0|Apache License 2.0|Apache Software License - Version 2.0|Apache License, Version 2.0|The Apache Software License, Version 2.0</licenseMerge>
+            <licenseMerge>Apache 2|Apache-2.0|ASF 2.0|Apache License 2.0|Apache Software License - Version 2.0|Apache License, Version 2.0|The Apache Software License, Version 2.0|The Apache License, Version 2.0</licenseMerge>
             <licenseMerge>CDDL|CDDL 1.1|CDDL + GPLv2 with classpath exception</licenseMerge>
             <licenseMerge>Eclipse|Eclipse Public License 1.0|Eclipse Public License - Version 1.0|Eclipse Distribution License - v 1.0|Eclipse Public License v2.0</licenseMerge>
             <licenseMerge>MIT|The MIT License</licenseMerge>

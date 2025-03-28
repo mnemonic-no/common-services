@@ -38,9 +38,9 @@ public class IntegrationTest {
 
   private static final String BASEURL = "http://localhost";
 
-  private final int bulkPort = AvailablePortFinder.getAvailablePort(9000);
-  private final int standardPort = AvailablePortFinder.getAvailablePort(10_000);
-  private final int expeditePort = AvailablePortFinder.getAvailablePort(11_000);
+  private final int bulkPort = AvailablePortFinder.getAvailablePort(9000 + (int)(Math.random()*1000));
+  private final int standardPort = AvailablePortFinder.getAvailablePort(10_000 + (int)(Math.random()*1000));
+  private final int expeditePort = AvailablePortFinder.getAvailablePort(11_000 + (int)(Math.random()*1000));
   private final ExecutorService executorService = Executors.newCachedThreadPool();
 
   private ServiceProxy proxy;

@@ -12,6 +12,8 @@ mnemonic common services
 [![Javadocs](https://javadoc.io/badge/no.mnemonic.services.common/service-api.svg?color=orange&label=service-api)](https://javadoc.io/doc/no.mnemonic.services.common/service-api)
 [![Javadocs](https://javadoc.io/badge/no.mnemonic.services.common/service-proxy.svg?color=orange&label=service-proxy)](https://javadoc.io/doc/no.mnemonic.services.common/service-proxy)
 [![Javadocs](https://javadoc.io/badge/no.mnemonic.services.common/service-proxy-jakarta.svg?color=orange&label=service-proxy-jakarta)](https://javadoc.io/doc/no.mnemonic.services.common/service-proxy-jakarta)
+[![Javadocs](https://javadoc.io/badge/no.mnemonic.services.common/documentchannel.svg?color=orange&label=documentchannel)](https://javadoc.io/doc/no.mnemonic.services.common/documentchannel)
+[![Javadocs](https://javadoc.io/badge/no.mnemonic.services.common/documentchannel-kafka.svg?color=orange&label=documentchannel-kafka)](https://javadoc.io/doc/no.mnemonic.services.common/documentchannel-kafka)
 
 ## Installation
 

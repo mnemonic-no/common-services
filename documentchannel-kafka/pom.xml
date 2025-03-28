@@ -1,21 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <artifactId>hazelcast5-consumer</artifactId>
-
-  <name>mnemonic common services - Hazelcast5 consumer</name>
-  <description>Implementation of a Kafka consumer using a Hazelcast 4 or 5 as buffer</description>
 
   <parent>
     <groupId>no.mnemonic.services.common</groupId>
     <artifactId>parent</artifactId>
     <version>0.8.0-SNAPSHOT</version>
   </parent>
+  <artifactId>documentchannel-kafka</artifactId>
 
   <dependencies>
     <dependency>
+      <groupId>no.mnemonic.services.common</groupId>
+      <artifactId>documentchannel</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>no.mnemonic.commons</groupId>
-      <artifactId>component</artifactId>
+      <artifactId>utilities</artifactId>
       <version>${mnemonic.commons.version}</version>
     </dependency>
     <dependency>
@@ -29,24 +31,34 @@
       <version>${mnemonic.commons.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>kafka-clients</artifactId>
+      <version>${kafka.clients.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+
+    <dependency>
       <groupId>no.mnemonic.commons</groupId>
-      <artifactId>utilities</artifactId>
+      <artifactId>testtools</artifactId>
       <version>${mnemonic.commons.version}</version>
+      <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>no.mnemonic.services.common</groupId>
-      <artifactId>documentchannel-kafka</artifactId>
-      <version>${project.version}</version>
+      <groupId>no.mnemonic.commons</groupId>
+      <artifactId>junit-docker</artifactId>
+      <version>${mnemonic.commons.version}</version>
+      <scope>test</scope>
     </dependency>
-
     <dependency>
-      <groupId>com.hazelcast</groupId>
-      <artifactId>hazelcast</artifactId>
-      <version>${hazelcast5.version}</version>
-      <scope>provided</scope>
+      <groupId>no.mnemonic.commons</groupId>
+      <artifactId>jupiter-docker</artifactId>
+      <version>${mnemonic.commons.version}</version>
+      <scope>test</scope>
     </dependency>
-
-    <!-- test deps -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
@@ -65,6 +77,17 @@
       <version>${mockito.version}</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>${mockito.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.palantir.docker.compose</groupId>
+      <artifactId>docker-compose-junit-jupiter</artifactId>
+      <version>${palantir.docker.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
-
 </project>

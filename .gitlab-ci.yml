@@ -1,5 +1,6 @@
 variables:
   SERVICE_SLUG: "joss-common-services"
+  DOCKER_HOSTNAME: "gitlab-docker.mtest.no"
 
 include:
   - project: development/cicd/gitlab-templates
