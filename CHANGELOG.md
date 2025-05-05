@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [0.8.1] - 2025-04-15
 ### Updated
+INCIDENT-245580
+- Improve logging in the `CircuitBreakerHandler` to identify the requestURI and service port when rejecting requests due to capacity shortage
+
+## [0.8.1] - 2025-04-15
+### Updated
 ARGUS-50254
 - Pipeline fixup
 

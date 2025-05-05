@@ -234,7 +234,10 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
     public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
       QueuedThreadPool threadPool = this.threadPools.get(baseRequest.getLocalPort());
       if (threadPool != null && threadPool.getIdleThreads() <= threshold) {
-        LOGGER.warning("Rejecting request, server too busy");
+        LOGGER.warning("Rejecting request to %s (port %d), server too busy",
+                baseRequest.getRequestURI(),
+                baseRequest.getLocalPort()
+        );
         response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "Server too busy");
         baseRequest.setHandled(true);
         ifNotNullDo(metrics.computeIfAbsent(baseRequest.getLocalPort(), p->new LongAdder()), LongAdder::increment);
