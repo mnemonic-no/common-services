@@ -3,6 +3,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.8.4] - 2025-08-19
+### Updated
+ARGUS-52322
+- Removed `hazelcast-consumer` module (Hazelcast 3 support).
+
+### Upgrade notes
+- All clients should have upgraded to Hazelcast 5 (`hazelcast5-consumer`)
+
 ## [0.8.1] - 2025-04-15
 ### Updated
 INCIDENT-245580

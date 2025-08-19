@@ -44,7 +44,6 @@
     <mnemonic.commons.version>0.5.9</mnemonic.commons.version>
 
     <!-- external dependencies -->
-    <hazelcast3.version>3.12.13</hazelcast3.version>
     <hazelcast5.version>5.5.0</hazelcast5.version>
     <jaxb.version>2.3.3</jaxb.version>
     <junit.version>4.13.2</junit.version>
@@ -86,7 +85,6 @@
     <module>documentchannel-kafka</module>
     <module>auth</module>
     <module>documentation</module>
-    <module>hazelcast-consumer</module>
     <module>hazelcast5-consumer</module>
     <module>service-api</module>
     <module>service-proxy</module>
