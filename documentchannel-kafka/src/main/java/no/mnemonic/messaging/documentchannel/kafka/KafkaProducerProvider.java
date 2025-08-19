@@ -143,6 +143,10 @@ public class KafkaProducerProvider {
               String.format("org.apache.kafka.common.security.scram.ScramLoginModule required username=\"%s\" password=\"%s\";",
                       saslUsername, saslPassword));
     }
+
+    //TODO: remove after all clients have been upgraded
+    properties.put("upgrade.from", "2.8.2");
+
     return properties;
   }
 

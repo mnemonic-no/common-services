@@ -126,8 +126,9 @@ public class KafkaDocumentChannelCustomSerializerTest {
   private KafkaDocumentDestination<MyObject> setupDestination() {
     KafkaDocumentDestination<MyObject> channel = KafkaDocumentDestination.<MyObject>builder()
             .setProducerProvider(createProducerProvider())
-            .setFlushAfterWrite(false)
+            .setFlushAfterWrite(true)
             .setTopicName(topic)
+            .setCreateIfMissing(true)
             .setKeySerializer(MyObject::getType)
             .setType(MyObject.class)
             .build();
@@ -141,6 +142,7 @@ public class KafkaDocumentChannelCustomSerializerTest {
             .setConsumerProvider(createConsumerProvider(group))
             .addErrorListener(errorListener)
             .setTopicName(topic)
+            .setCreateIfMissing(true)
             .setType(MyObject.class)
             .setCommitType(KafkaDocumentSource.CommitType.sync)
             .build();

@@ -107,7 +107,6 @@ public class KafkaConsumerProvider {
     properties.put(AUTO_OFFSET_RESET_CONFIG, offsetResetStrategy.name());
     properties.put(ENABLE_AUTO_COMMIT_CONFIG, autoCommit);
     properties.put(CLIENT_ID_CONFIG, UUID.randomUUID().toString());
-
     properties.put(REQUEST_TIMEOUT_MS_CONFIG, requestTimeoutMs);
     properties.put(SESSION_TIMEOUT_MS_CONFIG, sessionTimeoutMs);
     properties.put(MAX_POLL_RECORDS_CONFIG, maxPollRecords);
@@ -121,6 +120,10 @@ public class KafkaConsumerProvider {
               String.format("org.apache.kafka.common.security.scram.ScramLoginModule required username=\"%s\" password=\"%s\";",
                       saslUsername, saslPassword));
     }
+
+    //TODO: remove after all clients have been upgraded
+    properties.put("upgrade.from", "2.8.2");
+
     return properties;
   }
 

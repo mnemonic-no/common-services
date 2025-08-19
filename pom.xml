@@ -41,7 +41,7 @@
     <jdk.version>1.8</jdk.version>
 
     <!-- mnemonic dependencies -->
-    <mnemonic.commons.version>0.5.0</mnemonic.commons.version>
+    <mnemonic.commons.version>0.5.9</mnemonic.commons.version>
 
     <!-- external dependencies -->
     <hazelcast3.version>3.12.13</hazelcast3.version>
@@ -52,20 +52,23 @@
     <mockito.version>5.14.2</mockito.version>
     <swagger.version>1.6.9</swagger.version>
     <lombok.version>1.18.34</lombok.version>
-    <xstream.version>1.4.20</xstream.version>
+    <xstream.version>1.4.21</xstream.version>
     <jackson.version>2.18.1</jackson.version>
     <wiremock.version>3.0.1</wiremock.version>
     <jetty.version>10.0.24</jetty.version>
     <jetty.jakarta.version>12.0.16</jetty.jakarta.version>
-    <apache.http.version>5.4.1</apache.http.version>
-    <kafka.clients.version>2.8.2</kafka.clients.version>
+    <apache.http.version>5.4.4</apache.http.version>
+    <kafka.clients.version>4.0.0</kafka.clients.version>
     <palantir.docker.version>1.9.0</palantir.docker.version>
+    <maven.jacoco.plugin.version>0.8.12</maven.jacoco.plugin.version>
+    <maven.codefilarete.jacoco.plugin.version>1.0.0</maven.codefilarete.jacoco.plugin.version>
 
     <!-- build dependencies -->
     <maven.clean.version>3.1.0</maven.clean.version>
     <maven.compiler.version>3.8.1</maven.compiler.version>
     <maven.deploy.version>2.8.2</maven.deploy.version>
     <maven.enforcer.version>1.4.1</maven.enforcer.version>
+    <maven.central.publishing.version>0.8.0</maven.central.publishing.version>
     <maven.gpg.version>1.6</maven.gpg.version>
     <maven.install.version>2.5.2</maven.install.version>
     <maven.jar.version>3.1.1</maven.jar.version>
@@ -120,7 +123,49 @@
         <directory>src/main/resources</directory>
       </resource>
     </resources>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.jacoco</groupId>
+          <artifactId>jacoco-maven-plugin</artifactId>
+          <version>${maven.jacoco.plugin.version}</version>
+          <executions>
+            <execution>
+              <id>prepare-agent</id>
+              <goals>
+                <goal>prepare-agent</goal>
+              </goals>
+            </execution>
+            <execution>
+              <id>report</id>
+              <goals>
+                <goal>report</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+      </plugins>
+    </pluginManagement>
     <plugins>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${maven.jacoco.plugin.version}</version>
+      </plugin>
+      <plugin>
+        <groupId>org.codefilarete</groupId>
+        <artifactId>jacoco-aggregate-submodule</artifactId>
+        <version>${maven.codefilarete.jacoco.plugin.version}</version>
+        <executions>
+          <execution>
+            <id>report-aggregate</id>
+            <goals>
+              <goal>report-aggregate</goal>
+            </goals>
+            <phase>verify</phase>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <artifactId>maven-enforcer-plugin</artifactId>
         <version>${maven.enforcer.version}</version>
@@ -160,6 +205,8 @@
         <configuration>
           <!-- Required to execute tests using XStream on JDK17. -->
           <argLine>
+            <!-- Add existing argLine to retain argLine set by jacoco prepare-agent -->
+            ${argLine}
             --add-opens java.base/java.io=ALL-UNNAMED
             --add-opens java.base/java.lang=ALL-UNNAMED
             --add-opens java.base/java.util=ALL-UNNAMED
@@ -274,6 +321,18 @@
 
   <profiles>
     <profile>
+      <id>test-coverage</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <profile>
       <!-- Use this profile to push to internal Artifactory during deploy. -->
       <id>publish-internal</id>
       <distributionManagement>
@@ -317,14 +376,12 @@
             </executions>
           </plugin>
           <plugin>
-            <groupId>org.sonatype.plugins</groupId>
-            <artifactId>nexus-staging-maven-plugin</artifactId>
-            <version>${maven.nexus.staging.version}</version>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>${maven.central.publishing.version}</version>
             <extensions>true</extensions>
             <configuration>
-              <serverId>ossrh</serverId>
-              <nexusUrl>https://oss.sonatype.org/</nexusUrl>
-              <autoReleaseAfterClose>true</autoReleaseAfterClose>
+              <publishingServerId>central</publishingServerId>
             </configuration>
           </plugin>
         </plugins>
