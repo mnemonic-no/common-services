@@ -5,7 +5,7 @@
   <parent>
     <groupId>no.mnemonic.services.common</groupId>
     <artifactId>parent</artifactId>
-    <version>0.9.0-SNAPSHOT</version>
+    <version>0.9.0</version>
   </parent>
   <artifactId>documentchannel-kafka</artifactId>
 
