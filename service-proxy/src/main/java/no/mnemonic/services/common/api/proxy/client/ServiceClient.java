@@ -178,6 +178,21 @@ public class ServiceClient<T extends Service> implements MetricAspect {
     globalThreadPriority.set(priority);
   }
 
+  /**
+   * Simplified method to allow scoped global thread priority, e.g.
+   * <code>
+   *   try (ThreadPriorityContext ctx = ServiceClient.createGlobalThreadPriorityContext(Priority.bulk) {
+   *     //do some bulk priority code
+   *   } //this auto-closes the context
+   * </code>
+   * @param priority the priority to use for all ServiceClient invocations in this scope
+   * @return an auto-closeable context scope
+   */
+  public static ServiceContext.ThreadPriorityContext createGlobalThreadPriorityContext(ServiceContext.Priority priority) {
+    setGlobalThreadPriority(priority);
+    return () -> setGlobalThreadPriority(null);
+  }
+
   public static ServiceContext.Priority getGlobalThreadPriority() {
     return ifNull(globalThreadPriority.get(), standard);
   }

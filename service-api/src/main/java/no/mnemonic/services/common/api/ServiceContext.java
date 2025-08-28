@@ -2,6 +2,11 @@ package no.mnemonic.services.common.api;
 
 public interface ServiceContext {
 
+  interface ThreadPriorityContext extends AutoCloseable {
+    @Override
+    void close();
+  }
+
   enum Priority {
     bulk,
     standard,

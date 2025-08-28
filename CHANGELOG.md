@@ -3,6 +3,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.9.1] - 2025-08-27
+### Added
+ARGUS-52449
+- Improve ServiceClient with method `createGlobalThreadPriorityContext`
+- This allows clients to use `try-with-resources` for a priority scope
+
 ## [0.9.0] - 2025-08-24
 ### Updated
 ARGUS-52379
