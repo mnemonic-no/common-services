@@ -3,6 +3,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.9.3] - 2025-09-03
+### Updated
+ARGUS-52406
+- Removed unnecessary JAXB dependency from `documentation`
+
 ## [0.9.1] - 2025-08-27
 ### Added
 ARGUS-52449

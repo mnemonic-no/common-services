@@ -24,14 +24,13 @@
       <version>${swagger.version}</version>
       <scope>provided</scope>
     </dependency>
-    <!-- Swagger depends on JAXB but that has been moved out of Java with JDK11. -->
+    <!-- test dependencies -->
     <dependency>
       <groupId>jakarta.xml.bind</groupId>
       <artifactId>jakarta.xml.bind-api</artifactId>
       <version>${jaxb.version}</version>
-      <scope>runtime</scope>
+      <scope>test</scope>
     </dependency>
-    <!-- test dependencies -->
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
