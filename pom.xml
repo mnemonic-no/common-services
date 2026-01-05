@@ -41,23 +41,23 @@
     <jdk.version>17</jdk.version>
 
     <!-- mnemonic dependencies -->
-    <mnemonic.commons.version>0.6.0</mnemonic.commons.version>
+    <mnemonic.commons.version>0.6.2</mnemonic.commons.version>
 
     <!-- external dependencies -->
-    <hazelcast5.version>5.5.0</hazelcast5.version>
+    <hazelcast5.version>5.6.0</hazelcast5.version>
     <jaxb.version>2.3.3</jaxb.version>
     <junit.version>4.13.2</junit.version>
-    <junit.jupiter.version>5.11.3</junit.jupiter.version>
-    <mockito.version>5.14.2</mockito.version>
+    <junit.jupiter.version>5.14.1</junit.jupiter.version>
+    <mockito.version>5.21.0</mockito.version>
     <swagger.version>1.6.9</swagger.version>
-    <lombok.version>1.18.34</lombok.version>
+    <lombok.version>1.18.42</lombok.version>
     <xstream.version>1.4.21</xstream.version>
-    <jackson.version>2.18.1</jackson.version>
+    <jackson.version>2.20.1</jackson.version>
     <wiremock.version>3.0.1</wiremock.version>
-    <jetty.version>10.0.24</jetty.version>
-    <jetty.jakarta.version>12.1.1</jetty.jakarta.version>
-    <apache.http.version>5.4.4</apache.http.version>
-    <kafka.clients.version>4.0.0</kafka.clients.version>
+    <jetty.version>10.0.26</jetty.version>
+    <jetty.jakarta.version>12.1.5</jetty.jakarta.version>
+    <apache.http.version>5.6</apache.http.version>
+    <kafka.clients.version>4.1.1</kafka.clients.version>
     <palantir.docker.version>1.9.0</palantir.docker.version>
     <maven.jacoco.plugin.version>0.8.12</maven.jacoco.plugin.version>
     <maven.codefilarete.jacoco.plugin.version>1.0.0</maven.codefilarete.jacoco.plugin.version>
