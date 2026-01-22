@@ -200,11 +200,33 @@ public class ServiceProxy implements LifecycleAspect, MetricAspect {
     int selectors = 5;
     int totalThreads = acceptors + selectors + threads;
     MonitoredQueuedThreadPool threadPool = new MonitoredQueuedThreadPool(totalThreads);
-    ServerConnector connector = new ServerConnector(server, threadPool, null, null, acceptors, selectors, new HttpConnectionFactory());
+    ServerConnector connector = new ServerConnector(
+            server,
+            threadPool,
+            null,
+            null,
+            acceptors,
+            selectors,
+            new HttpConnectionFactory(createHttpConfig())
+    );
+
     connector.setPort(port);
     server.addConnector(connector);
     LOGGER.info("Adding connector on port %d", port);
     return threadPool;
+  }
+
+  private static HttpConfiguration createHttpConfig() {
+    HttpConfiguration config = new HttpConfiguration();
+    config.addCustomizer(createForwardCustomizer());
+    return config;
+  }
+
+  private static ForwardedRequestCustomizer createForwardCustomizer() {
+    //add a Forwarded request customizer which handles RFC7239 Forwarded header
+    ForwardedRequestCustomizer customizer = new ForwardedRequestCustomizer();
+    customizer.setForwardedOnly(true);
+    return customizer;
   }
 
   public static class CircuitBreakerHandler extends Handler.Abstract {

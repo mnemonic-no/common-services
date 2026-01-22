@@ -1,20 +1,24 @@
 package no.mnemonic.services.common.api.proxy.server;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.Builder;
 import lombok.CustomLog;
 import lombok.NonNull;
 import no.mnemonic.commons.logging.LocalLoggingContext;
+import no.mnemonic.commons.utilities.collections.ListUtils;
+import no.mnemonic.services.common.api.proxy.ServiceProxyRequestContext;
 import no.mnemonic.services.common.api.proxy.Utils;
 import no.mnemonic.services.common.api.proxy.client.ServiceClient;
 import no.mnemonic.services.common.api.proxy.messages.ServiceRequestMessage;
 
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,7 +55,6 @@ public class ServiceV1Servlet extends HttpServlet {
       Type type = Type.valueOf(matcher.group(2));
       String methodName = matcher.group(3);
 
-
       ServiceInvocationHandler<?> handler = invocationHandlers.get(serviceName);
       if (handler == null) {
         throw new IllegalArgumentException("Service not known: " + serviceName);
@@ -59,7 +62,10 @@ public class ServiceV1Servlet extends HttpServlet {
 
       //decode JSON request
       ServiceRequestMessage request = mapper.readValue(req.getInputStream(), ServiceRequestMessage.class);
-      try (LocalLoggingContext ignored = LocalLoggingContext.create().using(LOG_KEY_PRIORITY, String.valueOf(request.getPriority()))) {
+      try (
+              LocalLoggingContext ignored = LocalLoggingContext.create().using(LOG_KEY_PRIORITY, String.valueOf(request.getPriority()));
+              ServiceProxyRequestContext ignoredRequestContext = createRequestContext(req);
+      ) {
         if (type == Type.single) {
           handler.handleSingle(methodName, request, resp);
         } else {
@@ -75,6 +81,20 @@ public class ServiceV1Servlet extends HttpServlet {
       ServiceClient.closeThreadResources();
     }
     resp.flushBuffer();
+  }
+
+  private ServiceProxyRequestContext createRequestContext(HttpServletRequest req) {
+    return ServiceProxyRequestContext.initialize(
+            req.getRemoteAddr(), extractHeaders(req)
+    );
+  }
+
+  private Map<String, List<String>> extractHeaders(HttpServletRequest req) {
+    Map<String, List<String>> result = new HashMap<>();
+    req.getHeaderNames().asIterator().forEachRemaining(h->
+            result.put(h, ListUtils.list(req.getHeaders(h).asIterator()))
+    );
+    return result;
   }
 
 }

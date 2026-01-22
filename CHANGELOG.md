@@ -3,6 +3,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.9.6] - 2026-01-20
+### Updated
+ENG-54233
+- Add `ForwardedRequestCustomizer` to the ServiceProxy Jetty server, to pick up SPI client IP forwarded by HAProxy
+- Add `ServiceProxyRequestContext`, exposing information about the SPI clientIP and SPI headers to the invoked service.
+
 ## [0.9.3] - 2025-09-03
 ### Updated
 ARGUS-52406
