@@ -14,6 +14,7 @@ import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -34,17 +35,20 @@ public class ServiceMessageConverter {
    * @param method the method being invoked
    * @param arguments the (serializable) arguments to pass with the request
    * @param priority the priority to set on the request
+   * @param requestHeaders additional HTTP headers to append to the SPI HTTP request
    * @return the prepared ServiceRequestMessage
    * @throws IOException if serialization of the arguments fails
    */
   public ServiceRequestMessage convert(UUID requestID,
                                        Method method,
                                        Object[] arguments,
-                                       ServiceContext.Priority priority
+                                       ServiceContext.Priority priority,
+                                       Map<String, List<String>> requestHeaders
   ) throws IOException {
     return ServiceRequestMessage.builder()
         .setRequestID(requestID)
         .setPriority(priority)
+        .setRequestHeaders(requestHeaders)
         .setArgumentTypes(fromTypes(method.getParameterTypes()))
         .setSerializerID(serializer.serializerID())
         .setArguments(Utils.serialize(serializer, arguments))

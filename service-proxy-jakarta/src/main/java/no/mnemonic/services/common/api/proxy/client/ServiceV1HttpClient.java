@@ -10,6 +10,9 @@ import no.mnemonic.commons.metrics.MetricAspect;
 import no.mnemonic.commons.metrics.MetricException;
 import no.mnemonic.commons.metrics.Metrics;
 import no.mnemonic.commons.metrics.MetricsData;
+import no.mnemonic.commons.utilities.collections.ListUtils;
+import no.mnemonic.commons.utilities.collections.MapUtils;
+import no.mnemonic.commons.utilities.collections.SetUtils;
 import no.mnemonic.services.common.api.ServiceContext;
 import no.mnemonic.services.common.api.ServiceTimeOutException;
 import no.mnemonic.services.common.api.proxy.messages.ServiceRequestMessage;
@@ -29,6 +32,7 @@ import org.apache.hc.core5.pool.PoolStats;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -139,23 +143,28 @@ public class ServiceV1HttpClient implements MetricAspect {
               ContentType.APPLICATION_JSON
       ));
       httpRequest.addHeader("Argus-Service-Client-Version", PACKAGE_VERSION);
+      for (Map.Entry<String, List<String>> header : MapUtils.map(requestBody.getRequestHeaders()).entrySet()) {
+        for (String val : ListUtils.list(header.getValue())) {
+          httpRequest.addHeader(header.getKey(), val);
+        }
+      }
       if (debugRequests) {
         LOGGER.debug("Invoking Service API %s", uri);
       }
       getContext(port).invocations.increment();
       ClassicHttpResponse response = httpClient.get().executeOpen(host, httpRequest, null);
+      //permit code 503 for direct service timeout
       if (response.getCode() == 503) {
         response.close();
         getContext(port).serviceTimeouts.increment();
         throw new ServiceTimeOutException(response.getReasonPhrase(), service);
+        //permit code 504 for gateway (indirect service) timeout
       } else if (response.getCode() == 504) {
         response.close();
         getContext(port).gatewayTimeouts.increment();
         throw new ServiceTimeOutException(response.getReasonPhrase(), service);
-      } else if (response.getCode() >= 400) {
-        response.close();
-        throw new IllegalStateException(String.format("Unexpected response (%d) from HTTP proxy: %s", response.getCode(), response.getReasonPhrase()));
-      } else {
+        //permit codes 200, 400 and 500 (200 should be OK results, 400 for checked exceptions, 500 for unchecked)
+      } else if (SetUtils.in(response.getCode(), 200, 400, 500)) {
         ServiceResponseContext ctx = ServiceResponseContext.builder()
                 .setThreadName(Thread.currentThread().getName())
                 .setTimestamp(System.currentTimeMillis())
@@ -165,8 +174,12 @@ public class ServiceV1HttpClient implements MetricAspect {
                 .setResponse(response)
                 .setOnClose(contextMap::remove)
                 .build();
+        // Register open connection in context map for leak detection and cleanup
         contextMap.put(ctx.getId(), ctx);
         return ctx;
+      } else {
+        response.close();
+        throw new IllegalStateException(String.format("Unexpected response (%d) from HTTP proxy: %s", response.getCode(), response.getReasonPhrase()));
       }
     } catch (ConnectionRequestTimeoutException e) {
       LOGGER.error(e, "Service request connection timeout");

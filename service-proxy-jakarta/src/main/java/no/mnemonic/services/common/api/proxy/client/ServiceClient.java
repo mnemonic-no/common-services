@@ -39,6 +39,11 @@ import static no.mnemonic.services.common.api.ServiceContext.Priority.standard;
  * The client will detect checked exceptions from the service, and re-throw them
  * (as long as the exception class is permitted by the serializer).
  *
+ * The client can be created with a {@link ServiceRequestHeaderResolver}, to resolve
+ * additional HTTP headers to use in each SPI request.
+ * It is the calling clients responsibility to implement this resolver to provide
+ * the desired headers.
+ *
  */
 @Builder(setterPrefix = "set")
 public class ServiceClient<T extends Service> implements MetricAspect {
@@ -58,6 +63,7 @@ public class ServiceClient<T extends Service> implements MetricAspect {
   private final Map<Class<?>, ResultSetExtender<?>> extenderFunctions;
   @Builder.Default
   private final List<ServiceClientMetaDataHandler> metaDataHandlers = new ArrayList<>();
+  private final ServiceRequestHeaderResolver requestHeaderResolver;
 
   @Builder.Default
   private final int readMaxStringLength = DEFAULT_MAX_STRING_LENGTH;
@@ -123,6 +129,7 @@ public class ServiceClient<T extends Service> implements MetricAspect {
   private ClientV1InvocationHandler<T> createHandler() {
     return ClientV1InvocationHandler.<T>builder()
         .setPriority(this::determinePriority)
+        .setRequestHeaderResolver(requestHeaderResolver)
         .setServiceContext(new ServiceContextImpl())
         .setHttpClient(v1HttpClient)
         .setProxyInterface(proxyInterface)

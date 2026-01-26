@@ -3,7 +3,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [0.9.6] - 2026-01-20
+## [0.9.6] - 2026-01-26
+### Updated
+ENG-54236
+- Removed `service-proxy` package
+- SPI client can now submit custom HTTP headers in the SPI request, by configuring a `ServiceRequestHeaderResolver`.
+- SPI client now accepts 200, 400 and 500 responses.
+- SPI proxy invocation handler has option `returnErrorResponses` to enable sending error responses (default disabled)
+
+These options allow passing more information about the request in HTTP request and response headers,
+which can be used in service routing.
+
+### Upgrade notes
+- Make sure **NOT** to enable `returnErrorResponses` until all clients are upgraded, else clients
+  will throw `IllegalStateException` on all checked or unchecked exceptions!
+- `ServiceInvocationHandler` option `returnErrorResponses` should NOT be enabled until all connected clients have been upgraded.
+- The `service-proxy` package is removed; all clients should have migrated to `service-proxy-jakarta`
+
+## [0.9.5] - 2026-01-20
 ### Updated
 ENG-54233
 - Add `ForwardedRequestCustomizer` to the ServiceProxy Jetty server, to pick up SPI client IP forwarded by HAProxy

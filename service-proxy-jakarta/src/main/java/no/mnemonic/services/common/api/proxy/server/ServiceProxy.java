@@ -38,8 +38,10 @@ import static org.eclipse.jetty.server.Response.writeError;
  * where SERVICE is the name of the service proxy, and METHOD is the name of the invoked method.
  * This endpoint expects POST methods with a JSONified ServiceRequestMessage.
  * The response is a JSONifed ServiceResponseMessage.
- * The endpoint will return HTTP code 200 on both normal and exceptional responses, and HTTP code 500 if the
- * service proxy itself fails.
+ * The endpoint will return HTTP code 200 on normal responses.
+ * If <code>returnErrorResponses</code> is enabled, it will return 400 on checked exceptions
+ * and 500 on unchecked exceptions. Else, all exception responses will also return 200.
+ * Respone 503 and 504 are used to detect gateway errors and service timeout.
  * <p>
  * For resultset (streaming results), there is a second endpoint
  * /service/v1/&lt;SERVICE&gt;/resultset/&lt;METHOD&gt;
@@ -60,7 +62,6 @@ import static org.eclipse.jetty.server.Response.writeError;
  * This allows the client to decode a resultset from the initial fields, and read
  * the data fields in a streaming manner, dealing with each response individually, and closing the resultset when receiving end-of-array.
  * <p>
- * The resultset endpoint will return HTTP code 200 on both normal and exceptional responses, and HTTP code 500 if the endpoint itself fails.
  * Exceptional responses follow the same structure as for single methods.
  * <p>
  * The /v1 of the service proxy URL indicates that we may introduce breaking protocol changes later,

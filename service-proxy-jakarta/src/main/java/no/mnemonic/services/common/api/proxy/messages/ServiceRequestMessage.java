@@ -9,7 +9,9 @@ import lombok.ToString;
 import lombok.extern.jackson.Jacksonized;
 import no.mnemonic.services.common.api.ServiceContext;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -31,6 +33,8 @@ public class ServiceRequestMessage {
   private final List<String> arguments;
   @Builder.Default
   private final ServiceContext.Priority priority = ServiceContext.Priority.standard;
+  @Builder.Default
+  private final Map<String, List<String>> requestHeaders = new HashMap<>();
 
   public enum Type {
     single, resultset
@@ -43,4 +47,5 @@ public class ServiceRequestMessage {
       return this;
     }
   }
+
 }

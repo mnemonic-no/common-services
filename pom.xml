@@ -87,7 +87,6 @@
     <module>documentation</module>
     <module>hazelcast5-consumer</module>
     <module>service-api</module>
-    <module>service-proxy</module>
     <module>service-proxy-jakarta</module>
   </modules>
 

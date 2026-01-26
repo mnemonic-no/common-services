@@ -3,24 +3,36 @@ package no.mnemonic.services.common.api.proxy.server;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.Builder;
 import lombok.CustomLog;
 import lombok.NonNull;
 import lombok.Singular;
-import no.mnemonic.commons.metrics.*;
+import no.mnemonic.commons.metrics.MetricAspect;
+import no.mnemonic.commons.metrics.MetricException;
+import no.mnemonic.commons.metrics.Metrics;
+import no.mnemonic.commons.metrics.MetricsData;
+import no.mnemonic.commons.metrics.TimerContext;
 import no.mnemonic.commons.utilities.collections.MapUtils;
-import no.mnemonic.services.common.api.*;
+import no.mnemonic.services.common.api.ResultSet;
+import no.mnemonic.services.common.api.ResultSetExtender;
+import no.mnemonic.services.common.api.Service;
+import no.mnemonic.services.common.api.ServiceSession;
+import no.mnemonic.services.common.api.ServiceSessionFactory;
 import no.mnemonic.services.common.api.annotations.ResultSetExtention;
 import no.mnemonic.services.common.api.proxy.ServiceProxyMetaDataContext;
 import no.mnemonic.services.common.api.proxy.messages.ServiceRequestMessage;
 import no.mnemonic.services.common.api.proxy.messages.ServiceResponseMessage;
 import no.mnemonic.services.common.api.proxy.serializer.Serializer;
 
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -30,14 +42,26 @@ import java.util.concurrent.atomic.LongAdder;
 import static no.mnemonic.commons.utilities.ObjectUtils.ifNull;
 import static no.mnemonic.commons.utilities.collections.SetUtils.set;
 import static no.mnemonic.commons.utilities.lambda.LambdaUtils.tryTo;
-import static no.mnemonic.services.common.api.proxy.Utils.*;
+import static no.mnemonic.services.common.api.proxy.Utils.HTTP_ERROR_RESPONSE;
+import static no.mnemonic.services.common.api.proxy.Utils.HTTP_OK_RESPONSE;
+import static no.mnemonic.services.common.api.proxy.Utils.toArgs;
+import static no.mnemonic.services.common.api.proxy.Utils.toTypes;
 
 /**
  * This handler deals with the actual invocation of methods on the proxied service,
  * and writing the responses back to the HTTP response
  * <p>
  * It has one method for handling single requests,
- * and another for handling streaming resultsets..
+ * and another for handling streaming resultsets.
+ * <p>
+ * This handler will return HTTP code 200 on normal responses.
+ * If <code>returnErrorResponses</code> is enabled, it will return 400 on checked exceptions
+ * and 500 on unchecked exceptions. Else, all exception responses will also return 200.
+ * Response 503 and 504 are used to detect gateway errors and service timeout.
+ *
+ * <b>NOTE</b> Enabling <code>returnErrorResponses</code> is a breaking change.
+ * Make sure all clients are upgraded before enabling this!
+ *
  */
 @Builder(setterPrefix = "set")
 @CustomLog
@@ -58,6 +82,8 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
   private final ServiceSessionFactory sessionFactory;
   @Builder.Default
   private long timeBetweenKeepAlives = DEFAULT_TIME_BETWEEN_KEEPALIVES;
+  @Builder.Default
+  private final boolean returnErrorResponses = false;
 
   private final LongAdder totalRequestCount = new LongAdder();
   private final LongAdder totalKeepAliveCount = new LongAdder();
@@ -74,11 +100,11 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
   @Override
   public Metrics getMetrics() throws MetricException {
     return new MetricsData()
-        .addData("total.request.count", totalRequestCount)
-        .addData("total.request.streaming.count", totalStreamingRequests)
-        .addData("total.request.simple.count", totalSimpleRequests)
-        .addData("total.keepalive.count", totalKeepAliveCount)
-        .addData("total.request.time.ms", totalRequestTimeMillis);
+            .addData("total.request.count", totalRequestCount)
+            .addData("total.request.streaming.count", totalStreamingRequests)
+            .addData("total.request.simple.count", totalSimpleRequests)
+            .addData("total.keepalive.count", totalKeepAliveCount)
+            .addData("total.request.time.ms", totalRequestTimeMillis);
   }
 
   /**
@@ -89,9 +115,9 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
    * @param httpResponse the HTTP response to write the result back to
    */
   public void handleSingle(
-      String methodName,
-      @NonNull ServiceRequestMessage request,
-      HttpServletResponse httpResponse
+          String methodName,
+          @NonNull ServiceRequestMessage request,
+          HttpServletResponse httpResponse
   ) throws Exception {
     try (ServiceProxyMetaDataContext ignoredCtx = ServiceProxyMetaDataContext.initialize()) {
       totalSimpleRequests.increment();
@@ -109,9 +135,9 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
    * @param httpResponse the HTTP response to write the result back to
    */
   public void handleStreaming(
-      String methodName,
-      @NonNull ServiceRequestMessage request,
-      HttpServletResponse httpResponse
+          String methodName,
+          @NonNull ServiceRequestMessage request,
+          HttpServletResponse httpResponse
   ) throws Exception {
     try (ServiceProxyMetaDataContext ignoredCtx = ServiceProxyMetaDataContext.initialize()) {
       totalStreamingRequests.increment();
@@ -135,8 +161,6 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
       throw new IllegalArgumentException("Unknown serializer: " + request.getSerializerID());
     }
     UUID requestID = ifNull(request.getRequestID(), UUID::randomUUID);
-    //always OK response (exceptions from the service are also 200 OK)
-    httpResponse.setStatus(HTTP_OK_RESPONSE);
     ongoingRequests.add(requestID);
 
     try (TimerContext ignored = TimerContext.timerMillis(totalRequestTimeMillis::add);
@@ -155,12 +179,26 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
           Object invocationResult = method.invoke(proxiedService, toArgs(serializer, request.getArguments()));
           //stop keepalive task before writing result back
           keepAliveTask.close();
+          //return OK response
+          httpResponse.setStatus(HTTP_OK_RESPONSE);
           //write the result back to writer
           writer.handle(method, requestID, serializer, generator, invocationResult);
         }
         set(debugListeners).forEach(l -> l.invocationSucceeded(requestID));
       } catch (InvocationTargetException e) {
         //since invocation is a method call, any exception is an InvocationTargetException
+        if (returnErrorResponses) {
+          if (e.getTargetException() instanceof RuntimeException) {
+            //use 500 error for unchecked exceptions
+            httpResponse.setStatus(HTTP_ERROR_RESPONSE);
+          } else {
+            //use 400 error for checked exceptions
+            httpResponse.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+          }
+        } else {
+          //legacy option, until all clients are upgraded
+          httpResponse.setStatus(HTTP_OK_RESPONSE);
+        }
         writeException(request.getRequestID(), serializer, generator, e);
         set(debugListeners).forEach(l -> l.invocationFailed(requestID));
       } catch (IOException e) {
@@ -210,7 +248,7 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
     return () -> {
       closeLatch.countDown();
       //wait for this task to end before returning, to ensure that the keepalive task stops sending keepalives before results are written
-      tryTo(()->finishedLatch.await(100, TimeUnit.MILLISECONDS));
+      tryTo(() -> finishedLatch.await(100, TimeUnit.MILLISECONDS));
     };
   }
 
@@ -297,28 +335,31 @@ public class ServiceInvocationHandler<T extends Service> implements MetricAspect
 
   private ServiceResponseMessage createSingleResponse(UUID requestID, Serializer serializer, Object invocationResult) throws IOException {
     return ServiceResponseMessage.builder()
-        .setMetaData(ServiceProxyMetaDataContext.getMetaData())
-        .setRequestID(requestID)
-        .setResponse(
-            serializer.serializeB64(invocationResult)
-        )
-        .build();
+            .setMetaData(ServiceProxyMetaDataContext.getMetaData())
+            .setRequestID(requestID)
+            .setResponse(
+                    serializer.serializeB64(invocationResult)
+            )
+            .build();
   }
 
   private ServiceResponseMessage createException(UUID requestID, Serializer serializer, Exception e) throws IOException {
     return ServiceResponseMessage.builder()
-        .setMetaData(ServiceProxyMetaDataContext.getMetaData())
-        .setRequestID(requestID)
-        .setException(
-            serializer.serializeB64(e)
-        )
-        .build();
+            .setMetaData(ServiceProxyMetaDataContext.getMetaData())
+            .setRequestID(requestID)
+            .setException(
+                    serializer.serializeB64(e)
+            )
+            .build();
   }
 
   public interface DebugListener {
     void invocationStarted(UUID requestID);
+
     void invocationSucceeded(UUID requestID);
+
     void invocationFailed(UUID requestID);
+
     void keepAliveSent(UUID requestID);
   }
 

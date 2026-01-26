@@ -69,6 +69,7 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
   @NonNull
   private final ObjectMapper mapper;
   private final List<ServiceClientMetaDataHandler> metaDataHandlers;
+  private final ServiceRequestHeaderResolver requestHeaderResolver;
 
   private static final ThreadLocal<Set<ResourceWrapper>> threadResources = new ThreadLocal<>();
 
@@ -136,7 +137,12 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
     ServiceMessageConverter serviceMessageConverter = new ServiceMessageConverter(serializer, mapper);
 
     UUID requestID = UUID.randomUUID();
-    ServiceRequestMessage request = serviceMessageConverter.convert(requestID, method, arguments, priority.get());
+    ServiceRequestMessage request = serviceMessageConverter.convert(
+            requestID,
+            method,
+            arguments,
+            getPriority(),
+            getRequestHeaders(method, arguments));
 
     if (LOGGER.isDebug()) {
       LOGGER.debug(">> request [callID=%s service=%s method=%s arguments=%s]",
@@ -169,7 +175,15 @@ class ClientV1InvocationHandler<T extends Service> implements InvocationHandler,
         return decodedResponse.getResponse();
       }
     }
+  }
 
+  private Map<String, List<String>> getRequestHeaders(Method method, Object[] arguments) {
+    if (requestHeaderResolver == null) return MapUtils.map();
+    return requestHeaderResolver.resolveHeaders(method, arguments);
+  }
+
+  private ServiceContext.Priority getPriority() {
+    return priority.get();
   }
 
   private <R> ResultSet<R> handleResultSet(Method invokedMethod, ServiceResponseContext response) throws Exception {
